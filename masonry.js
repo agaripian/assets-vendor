@@ -152,7 +152,7 @@ if ( typeof define === 'function' && define.amd ) {
  */
 
 (function () {
-
+	
 
 	/**
 	 * Class for managing events.
@@ -847,7 +847,7 @@ if ( typeof define === 'function' && define.amd ) {
 
 ( function( global, ElemProto ) {
 
-
+  
 
   var matchesMethod = ( function() {
     // check un-prefixed
@@ -966,6 +966,23 @@ function extend( a, b ) {
   return a;
 }
 
+function isEmptyObj( obj ) {
+  for ( var prop in obj ) {
+    return false;
+  }
+  prop = null;
+  return true;
+}
+
+// http://jamesroberts.name/blog/2010/02/22/string-functions-for-javascript-trim-to-camel-case-to-dashed-and-to-underscore/
+function toDash( str ) {
+  return str.replace( /([A-Z])/g, function( $1 ){
+    return '-' + $1.toLowerCase();
+  });
+}
+
+// -------------------------- Outlayer definition -------------------------- //
+
 function outlayerItemDefinition( EventEmitter, getSize, getStyleProperty ) {
 
 // -------------------------- CSS3 support -------------------------- //
@@ -1025,6 +1042,13 @@ function Item( element, layout ) {
 extend( Item.prototype, EventEmitter.prototype );
 
 Item.prototype._create = function() {
+  // transition objects
+  this._transition = {
+    ingProperties: {},
+    clean: {},
+    onEnd: {}
+  };
+
   this.css({
     position: 'absolute'
   });
@@ -1145,7 +1169,9 @@ Item.prototype._transitionTo = function( x, y ) {
 
   this.transition({
     to: transitionStyle,
-    onTransitionEnd: this.layoutPosition,
+    onTransitionEnd: {
+      transform: this.layoutPosition
+    },
     isCleaning: true
   });
 };
@@ -1178,8 +1204,8 @@ Item.prototype._nonTransition = function( args ) {
   if ( args.isCleaning ) {
     this._removeStyles( args.to );
   }
-  if ( args.onTransitionEnd ) {
-    args.onTransitionEnd.call( this );
+  for ( var prop in args.onTransitionEnd ) {
+    args.onTransitionEnd[ prop ].call( this );
   }
 };
 
@@ -1193,38 +1219,23 @@ Item.prototype._nonTransition = function( args ) {
  */
 Item.prototype._transition = function( args ) {
   // redirect to nonTransition if no transition duration
-  var transitionDuration = this.layout.options.transitionDuration;
-  if ( !parseFloat( transitionDuration ) ) {
+  if ( !parseFloat( this.layout.options.transitionDuration ) ) {
     this._nonTransition( args );
     return;
   }
 
-  var style = args.to;
-  // make transition: foo, bar, baz from style object
-  var transitionValue = [];
-  for ( var prop in style ) {
-    transitionValue.push( prop );
+  var _transition = this._transition;
+  // keep track of onTransitionEnd callback by css property
+  for ( var prop in args.onTransitionEnd ) {
+    _transition.onEnd[ prop ] = args.onTransitionEnd[ prop ];
   }
-
-  // enable transition
-  var transitionStyle = {};
-  transitionStyle.transitionProperty = transitionValue.join(',');
-  transitionStyle.transitionDuration = transitionDuration;
-
-  this.element.addEventListener( transitionEndEvent, this, false );
-
-  // if there's stuff to do after the transition
-  if ( args.isCleaning || args.onTransitionEnd ) {
-    this.onTransitionEnd = function() {
-      // remove transition styles after transition
-      if ( args.isCleaning ) {
-        this._removeStyles( style );
-      }
-      // trigger callback now that transition has ended
-      if ( args.onTransitionEnd ) {
-        args.onTransitionEnd.call( this );
-      }
-    };
+  // keep track of properties that are transitioning
+  for ( prop in args.to ) {
+    _transition.ingProperties[ prop ] = true;
+    // keep track of properties to clean up when transition is done
+    if ( args.isCleaning ) {
+      _transition.clean[ prop ] = true;
+    }
   }
 
   // set from styles
@@ -1235,12 +1246,41 @@ Item.prototype._transition = function( args ) {
     // hack for JSHint to hush about unused var
     h = null;
   }
-  // set transition styles, to enable transition
-  this.css( transitionStyle );
+  // enable transition
+  this.enableTransition( args.to );
   // set styles that are transitioning
-  this.css( style );
+  this.css( args.to );
 
   this.isTransitioning = true;
+
+};
+
+var itemTransitionProperties = transformProperty && ( toDash( transformProperty ) +
+  ',opacity' );
+
+Item.prototype.enableTransition = function(/* style */) {
+  // only enable if not already transitioning
+  // bug in IE10 were re-setting transition style will prevent
+  // transitionend event from triggering
+  if ( this.isTransitioning ) {
+    return;
+  }
+
+  // make transition: foo, bar, baz from style object
+  // TODO uncomment this bit when IE10 bug is resolved
+  // var transitionValue = [];
+  // for ( var prop in style ) {
+  //   // dash-ify camelCased properties like WebkitTransition
+  //   transitionValue.push( toDash( prop ) );
+  // }
+  // enable transition styles
+  // HACK always enable transform,opacity for IE10
+  this.css({
+    transitionProperty: itemTransitionProperties,
+    transitionDuration: this.layout.options.transitionDuration
+  });
+  // listen for transition end event
+  this.element.addEventListener( transitionEndEvent, this, false );
 };
 
 Item.prototype.transition = Item.prototype[ transitionProperty ? '_transition' : '_nonTransition' ];
@@ -1255,27 +1295,49 @@ Item.prototype.onotransitionend = function( event ) {
   this.ontransitionend( event );
 };
 
+// properties that I munge to make my life easier
+var dashedVendorProperties = {
+  '-webkit-transform': 'transform',
+  '-moz-transform': 'transform',
+  '-o-transform': 'transform'
+};
+
 Item.prototype.ontransitionend = function( event ) {
-  // console.log('transition end');
   // disregard bubbled events from children
   if ( event.target !== this.element ) {
     return;
   }
+  var _transition = this._transition;
+  // get property name of transitioned property, convert to prefix-free
+  var propertyName = dashedVendorProperties[ event.propertyName ] || event.propertyName;
 
-  this.removeTransitionStyles();
-
-  this.element.removeEventListener( transitionEndEvent, this, false );
-
-  this.isTransitioning = false;
-
-  // trigger onTransitionEnd
-  // for clean-up styles
-  if ( this.onTransitionEnd ) {
-    this.onTransitionEnd.call( this );
-    delete this.onTransitionEnd;
+  // remove property that has completed transitioning
+  delete _transition.ingProperties[ propertyName ];
+  // check if any properties are still transitioning
+  if ( isEmptyObj( _transition.ingProperties ) ) {
+    // all properties have completed transitioning
+    this.disableTransition();
+  }
+  // clean style
+  if ( propertyName in _transition.clean ) {
+    // clean up style
+    this.element.style[ event.propertyName ] = '';
+    delete _transition.clean[ propertyName ];
+  }
+  // trigger onTransitionEnd callback
+  if ( propertyName in _transition.onEnd ) {
+    var onTransitionEnd = _transition.onEnd[ propertyName ];
+    onTransitionEnd.call( this );
+    delete _transition.onEnd[ propertyName ];
   }
 
   this.emitEvent( 'transitionEnd', [ this ] );
+};
+
+Item.prototype.disableTransition = function() {
+  this.removeTransitionStyles();
+  this.element.removeEventListener( transitionEndEvent, this, false );
+  this.isTransitioning = false;
 };
 
 /**
@@ -1350,8 +1412,10 @@ Item.prototype.hide = function() {
     to: options.hiddenStyle,
     // keep hidden stuff hidden
     isCleaning: true,
-    onTransitionEnd: function() {
-      this.css({ display: 'none' });
+    onTransitionEnd: {
+      opacity: function() {
+        this.css({ display: 'none' });
+      }
     }
   });
 };
@@ -1395,7 +1459,7 @@ if ( typeof define === 'function' && define.amd ) {
 })( window );
 
 /*!
- * Outlayer v1.1.3
+ * Outlayer v1.1.8
  * the brains and guts of a layout library
  */
 
@@ -1466,6 +1530,13 @@ var indexOf = Array.prototype.indexOf ? function( ary, obj ) {
     }
     return -1;
   };
+
+function removeFrom( obj, ary ) {
+  var index = indexOf( ary, obj );
+  if ( index !== -1 ) {
+    ary.splice( index, 1 );
+  }
+}
 
 // http://jamesroberts.name/blog/2010/02/22/string-functions-for-javascript-trim-to-camel-case-to-dashed-and-to-underscore/
 function toDashed( str ) {
@@ -1579,16 +1650,16 @@ Outlayer.prototype._create = function() {
 // goes through all children again and gets bricks in proper order
 Outlayer.prototype.reloadItems = function() {
   // collection of item elements
-  this.items = this._getItems( this.element.children );
+  this.items = this._itemize( this.element.children );
 };
 
 
 /**
- * get item elements to be used in layout
+ * turn elements into Outlayer.Items to be used in layout
  * @param {Array or NodeList or HTMLElement} elems
  * @returns {Array} items - collection of new Outlayer Items
  */
-Outlayer.prototype._getItems = function( elems ) {
+Outlayer.prototype._itemize = function( elems ) {
 
   var itemElems = this._filterFindItemElements( elems );
   var Item = this.settings.item;
@@ -1597,7 +1668,7 @@ Outlayer.prototype._getItems = function( elems ) {
   var items = [];
   for ( var i=0, len = itemElems.length; i < len; i++ ) {
     var elem = itemElems[i];
-    var item = new Item( elem, this, this.options.itemOptions );
+    var item = new Item( elem, this );
     items.push( item );
   }
 
@@ -1938,10 +2009,7 @@ Outlayer.prototype.unstamp = function( elems ) {
   for ( var i=0, len = elems.length; i < len; i++ ) {
     var elem = elems[i];
     // filter out removed stamp elements
-    var index = indexOf( this.stamps, elem );
-    if ( index !== -1 ) {
-      this.stamps.splice( index, 1 );
-    }
+    removeFrom( elem, this.stamps );
     this.unignore( elem );
   }
 
@@ -2056,6 +2124,7 @@ Outlayer.prototype.onresize = function() {
   var _this = this;
   function delayed() {
     _this.resize();
+    delete _this.resizeTimeout;
   }
 
   this.resizeTimeout = setTimeout( delayed, 100 );
@@ -2073,8 +2142,6 @@ Outlayer.prototype.resize = function() {
   }
 
   this.layout();
-
-  delete this.resizeTimeout;
 };
 
 
@@ -2086,12 +2153,11 @@ Outlayer.prototype.resize = function() {
  * @returns {Array} items - Outlayer.Items
 **/
 Outlayer.prototype.addItems = function( elems ) {
-  var items = this._getItems( elems );
-  if ( !items.length ) {
-    return;
-  }
+  var items = this._itemize( elems );
   // add items to collection
-  this.items = this.items.concat( items );
+  if ( items.length ) {
+    this.items = this.items.concat( items );
+  }
   return items;
 };
 
@@ -2114,7 +2180,7 @@ Outlayer.prototype.appended = function( elems ) {
  * @param {Array or NodeList or Element} elems
  */
 Outlayer.prototype.prepended = function( elems ) {
-  var items = this._getItems( elems );
+  var items = this._itemize( elems );
   if ( !items.length ) {
     return;
   }
@@ -2123,6 +2189,7 @@ Outlayer.prototype.prepended = function( elems ) {
   this.items = items.concat( previousItems );
   // start new layout
   this._resetLayout();
+  this._manageStamps();
   // layout new stuff without transition
   this.layoutItems( items, true );
   this.reveal( items );
@@ -2217,8 +2284,7 @@ Outlayer.prototype.remove = function( elems ) {
     var item = removeItems[i];
     item.remove();
     // remove item from collection
-    var index = indexOf( this.items, item );
-    this.items.splice( index, 1 );
+    removeFrom( item, this.items );
   }
 };
 
