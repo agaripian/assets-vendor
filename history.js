@@ -1,8 +1,14 @@
 /**
+ * IMPORTANT: MODIFIED BY BEHANCE
+ * modified isTraditionalAnchor to ignore `.` in detecting stateful anchor
+ * to enable compatibility with IMS encoding accessTokens in hashes
+ *
  * History.js Core
  * @author Benjamin Arthur Lupton <contact@balupton.com>
  * @copyright 2010-2011 Benjamin Arthur Lupton <contact@balupton.com>
  * @license New BSD License <http://creativecommons.org/licenses/BSD/>
+ *
+ *
  */
 
 (function(window,undefined){
@@ -589,7 +595,7 @@
 
 			if (doc.URL.indexOf('#') == -1 && doc.location.href.indexOf('#') != -1)
 				return doc.location.href;
-			
+
 			return doc.URL || doc.location.href;
 		};
 
@@ -900,7 +906,7 @@
 			var id,parts,url, tmp;
 
 			// Extract
-			
+
 			// If the URL has a #, use the id from before the #
 			if (url_or_hash.indexOf('#') != -1)
 			{
@@ -910,7 +916,7 @@
 			{
 				tmp = url_or_hash;
 			}
-			
+
 			parts = /(.*)\&_suid=([0-9]+)$/.exec(tmp);
 			url = parts ? (parts[1]||url_or_hash) : url_or_hash;
 			id = parts ? String(parts[2]||'') : '';
@@ -927,7 +933,7 @@
 		 */
 		History.isTraditionalAnchor = function(url_or_hash){
 			// Check
-			var isTraditional = !(/[\/\?\.]/.test(url_or_hash));
+			var isTraditional = !(/[\/\?]/.test(url_or_hash));
 
 			// Return
 			return isTraditional;
@@ -1110,7 +1116,7 @@
 			// Return State
 			return State;
 		};
-		
+
 		/**
 		 * History.getCurrentIndex()
 		 * Gets the current index
@@ -1119,7 +1125,7 @@
 		History.getCurrentIndex = function(){
 			// Prepare
 			var index = null;
-			
+
 			// No states saved
 			if(History.savedStates.length < 1) {
 				index = 0;
