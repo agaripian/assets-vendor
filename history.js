@@ -1,7 +1,8 @@
 /**
  * IMPORTANT: MODIFIED BY BEHANCE
- * modified isTraditionalAnchor to ignore `.` in detecting stateful anchor
- * to enable compatibility with IMS encoding accessTokens in hashes
+ * 1. modified isTraditionalAnchor to ignore `.` in detecting stateful anchor
+ *    to enable compatibility with IMS encoding accessTokens in hashes
+ * 2. NS_ERROR_DOM_QUOTA_REACHED now ignored when trying to set SessionStorage
  *
  * History.js Core
  * @author Benjamin Arthur Lupton <contact@balupton.com>
@@ -1987,7 +1988,7 @@
 						} else {
 							// Otherwise, we're probably private browsing in Safari, so we'll ignore the exception.
 						}
-					} else {
+					} else if (e.name !== 'NS_ERROR_DOM_QUOTA_REACHED') {
 						throw e;
 					}
 				}
