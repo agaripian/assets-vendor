@@ -42904,6 +42904,12 @@ CKEDITOR.config.toolbarLocation = 'top';
 					}, 0 );
 				}
 			});
+		} else if ( CKEDITOR.env.webkit ) {
+			// Fix problem with cursor not appearing in Chrome when clicking below the body (#10945).
+			doc.getDocumentElement().on( 'mousedown', function( evt ) {
+				if ( evt.data.getTarget().is( 'html' ) )
+					editor.editable().focus();
+			} );
 		}
 
 		// Gecko needs a key event to 'wake up' editing when the document is
