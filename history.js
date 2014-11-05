@@ -3,6 +3,7 @@
  * 1. modified isTraditionalAnchor to ignore `.` in detecting stateful anchor
  *    to enable compatibility with IMS encoding accessTokens in hashes
  * 2. NS_ERROR_DOM_QUOTA_REACHED now ignored when trying to set SessionStorage
+ * 3. Moved sessionStorage detection into try to guard against Chrome security error
  *
  * History.js Core
  * @author Benjamin Arthur Lupton <contact@balupton.com>
@@ -23,7 +24,6 @@
 		console = window.console||undefined, // Prevent a JSLint complain
 		document = window.document, // Make sure we are using the correct document
 		navigator = window.navigator, // Make sure we are using the correct navigator
-		sessionStorage = window.sessionStorage||false, // sessionStorage
 		setTimeout = window.setTimeout,
 		clearTimeout = window.clearTimeout,
 		setInterval = window.setInterval,
@@ -31,9 +31,11 @@
 		JSON = window.JSON,
 		alert = window.alert,
 		History = window.History = window.History||{}, // Public History Object
-		history = window.history; // Old History Object
+		history = window.history, // Old History Object
+		sessionStorage;
 
 	try {
+		sessionStorage = window.sessionStorage;
 		sessionStorage.setItem('TEST', '1');
 		sessionStorage.removeItem('TEST');
 	} catch(e) {
