@@ -7441,7 +7441,9 @@ qqq.traditional.XhrUploadHandler = function(spec, proxy) {
         },
 
         isErrorUploadResponse = function(xhr, response) {
-            return xhr.status !== 200 || !response.success || response.reset;
+            // Changed to response.success === false to bypass requiring the backend
+            // to supply a success attribute in the response
+            return xhr.status !== 200 || response.success === false || response.reset;
         },
 
         onUploadOrChunkComplete = function(id, xhr) {
