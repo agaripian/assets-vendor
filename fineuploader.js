@@ -1,3 +1,10 @@
+/**
+ * Modified by BEHANCE
+ * 1. Make your modifications in this file
+ * 2. Comment on change with a `BEHANCE:` prefix
+ */
+
+
 /*!
 * Fine Uploader
 *
