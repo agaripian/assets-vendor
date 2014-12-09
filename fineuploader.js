@@ -7441,7 +7441,7 @@ qqq.traditional.XhrUploadHandler = function(spec, proxy) {
         },
 
         isErrorUploadResponse = function(xhr, response) {
-            // Changed to response.success === false to bypass requiring the backend
+            // BEHANCE: Changed to response.success === false to bypass requiring the backend
             // to supply a success attribute in the response
             return xhr.status !== 200 || response.success === false || response.reset;
         },
@@ -7495,6 +7495,9 @@ qqq.traditional.XhrUploadHandler = function(spec, proxy) {
 
         setParamsAndGetEntityToSend = function(params, xhr, fileOrBlob, id) {
             var formData = new FormData(),
+                // BEHANCE: Allowing the method to be changed in application code
+                // Waiting for the proper fix in https://github.com/FineUploader/fine-uploader/issues/734
+                // Usage: uploader._paramsStore.method = 'PATCH';
                 method = spec.paramsStore.method || (spec.demoMode ? "GET" : "POST"),
                 endpoint = spec.endpointStore.get(id),
                 name = getName(id),
