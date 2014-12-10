@@ -1,3 +1,10 @@
+/**
+ * Modified by BEHANCE
+ * 1. Make your modifications in this file
+ * 2. Comment on change with a `BEHANCE:` prefix
+ */
+
+
 /*!
 * Fine Uploader
 *
@@ -7441,7 +7448,10 @@ qqq.traditional.XhrUploadHandler = function(spec, proxy) {
         },
 
         isErrorUploadResponse = function(xhr, response) {
-            return xhr.status !== 200 || !response.success || response.reset;
+            // BEHANCE: Changed to response.success === false to bypass requiring the backend
+            // to supply a success attribute in the response
+            // BEHANCE: An empty response with a status of 200 should still be an error
+            return xhr.status !== 200 || response.success === false || !Object.keys(response).length || response.reset;
         },
 
         onUploadOrChunkComplete = function(id, xhr) {
@@ -7493,7 +7503,10 @@ qqq.traditional.XhrUploadHandler = function(spec, proxy) {
 
         setParamsAndGetEntityToSend = function(params, xhr, fileOrBlob, id) {
             var formData = new FormData(),
-                method = spec.demoMode ? "GET" : "POST",
+                // BEHANCE: Allowing the method to be changed in application code
+                // Waiting for the proper fix in https://github.com/FineUploader/fine-uploader/issues/734
+                // Usage: uploader._paramsStore.method = 'PATCH';
+                method = spec.paramsStore.method || (spec.demoMode ? "GET" : "POST"),
                 endpoint = spec.endpointStore.get(id),
                 name = getName(id),
                 size = getSize(id);
