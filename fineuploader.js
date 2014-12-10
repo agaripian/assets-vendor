@@ -2587,6 +2587,11 @@ qqq.status = {
             r("{extensions}", extensionsForMessage);
             r("{sizeLimit}", this._formatSize(validationBase.sizeLimit));
             r("{minSizeLimit}", this._formatSize(validationBase.minSizeLimit));
+            // BEHANCE: Support dimensions as template vars
+            r("{minWidth}", this._options.validation.image.minWidth);
+            r("{maxWidth}", this._options.validation.image.maxWidth);
+            r("{minHeight}", this._options.validation.image.minHeight);
+            r("{maxHeight}", this._options.validation.image.maxHeight);
 
             placeholderMatch = message.match(/(\{\w+\})/g);
             if (placeholderMatch !== null) {
