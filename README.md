@@ -16,13 +16,11 @@ Behance maintains several CKEditor plugins in the behance/ckeditor-dev repo. In 
 
 ## Updating FineUploader
 
-Behance maintains our own version of FineUploader to introduce a number of necessary features/patches
-that are too far out in the FineUploader roadmap.
+Behance maintains our own version of FineUploader in the behance/fine-uploader repo. In order to update to the latest FineUploader, or to generate a new build, perform the following steps:
 
-We currently maintain a patched version of the unminified, built file: fineuploader.js. In the near future,
-we will have a proper fork with build instructions to follow.
+1. follow the instructions on http://docs.fineuploader.com/contributing.html
+1. copy the correct files to this repo. As of 5/20/15 that is both the regular fine-uploader.min.js file and the s3.fine-uploader.min.js
+1. Ensure that Behance's custom changes are in place by grepping the code for comments starting with `BEHANCE:`
+1. Add AMD wrappers around the code to avoid having conflicting globals.
 
-Pre-fork instructions:
-
-1. Make your modifications in fineuploader.js
-2. Comment on change with a `BEHANCE:` prefix
+Future modifications to FineUploader should be done as pull requests against the behance/fine-uploader repo.
