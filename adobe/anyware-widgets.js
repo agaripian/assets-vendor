@@ -1,7 +1,7 @@
 /**
- * AnywareComponents - 2.19.0-jenkins-AWC_AnywareComponents_master-36 (2014-09-15)
+ * AnywareComponents - 2.38.0-jenkins-AWC_AnywareComponents_master-72 (2015-06-19)
  * Collection of resusable Adobe Anyware Widgets
- * Copyright (c) 2014 Adobe Systems Inc
+ * Copyright (c) 2015 Adobe Systems Inc
  */
 
 (function () {/**
@@ -429,12 +429,12 @@ var requirejs, require, define;
 define("lib/almond/almond", function(){});
 
 /**
-  This Module is used at build time of anyware widgets so that jquery can be excluded
-  from the minified file.
+	This Module is used at build time of anyware widgets so that jquery can be excluded
+	from the minified file.
 **/
 
 define('jquery',[],function(){
-  return window.$;
+	return window.$;
 });
 /*!
 * CanJS - 1.1.5 (2013-03-27)
@@ -590,10 +590,10 @@ define('can/util/library',['can/util/jquery'], function (can) {
 */
 define('can/util/string',['can/util/library'], function (can) {
     // ##string.js
-    // _Miscellaneous string utility functions._
+    // _Miscellaneous string utility functions._  
     // Several of the methods in this plugin use code adapated from Prototype
     // Prototype JavaScript framework, version 1.6.0.1.
-    // Â© 2005-2007 Sam Stephenson
+    // © 2005-2007 Sam Stephenson
     var strUndHash = /_|-/,
         strColons = /\=\=/,
         strWords = /([A-Z]+)([A-Z][a-z])/g,
@@ -604,7 +604,7 @@ define('can/util/string',['can/util/library'], function (can) {
         strSingleQuote = /'/g,
 
         // Returns the `prop` property from `obj`.
-        // If `add` is true and `prop` doesn't exist in `obj`, create it as an
+        // If `add` is true and `prop` doesn't exist in `obj`, create it as an 
         // empty object.
         getNext = function (obj, prop, add) {
             return prop in obj ? obj[prop] : (add && (obj[prop] = {}));
@@ -626,7 +626,7 @@ define('can/util/string',['can/util/library'], function (can) {
 
         getObject: function (name, roots, add) {
 
-            // The parts of the name we are looking up
+            // The parts of the name we are looking up  
             // `['App','Models','Recipe']`
             var parts = name ? name.split('.') : [],
                 length = parts.length,
@@ -644,7 +644,7 @@ define('can/util/string',['can/util/library'], function (can) {
             while (roots[r]) {
                 current = roots[r];
 
-                // Walk current to the 2nd to last object or until there
+                // Walk current to the 2nd to last object or until there 
                 // is not a container.
                 for (i = 0; i < length - 1 && isContainer(current); i++) {
                     current = getNext(current, parts[i], add);
@@ -721,9 +721,9 @@ define('can/util/string',['can/util/library'], function (can) {
 define('can/construct',['can/util/string'], function (can) {
 
     // ## construct.js
-    // `can.Construct`
+    // `can.Construct`  
     // _This is a modified version of
-    // [John Resig's class](http://ejohn.org/blog/simple-javascript-inheritance/).
+    // [John Resig's class](http://ejohn.org/blog/simple-javascript-inheritance/).  
     // It provides class level inheritance and callbacks._
     // A private flag used to initialize a new class instance without
     // initializing it's bindings.
@@ -750,7 +750,7 @@ define('can/construct',['can/util/string'], function (can) {
                 args = inst.setup.apply(inst, arguments);
             }
 
-            // Call `init` if there is an `init`
+            // Call `init` if there is an `init`  
             // If `setup` returned `args`, use those as the arguments
             if (inst.init) {
                 inst.init.apply(inst, args || arguments);
@@ -759,8 +759,8 @@ define('can/construct',['can/util/string'], function (can) {
             return inst;
         },
         // Overwrites an object with methods. Used in the `super` plugin.
-        // `newProps` - New properties to add.
-        // `oldProps` - Where the old properties might be (used with `super`).
+        // `newProps` - New properties to add.  
+        // `oldProps` - Where the old properties might be (used with `super`).  
         // `addTo` - What we are adding to.
         _inherit: function (newProps, oldProps, addTo) {
             can.extend(addTo || newProps, newProps || {})
@@ -771,7 +771,7 @@ define('can/construct',['can/util/string'], function (can) {
         _overwrite: function (what, oldProps, propName, val) {
             what[propName] = val;
         },
-        // Set `defaults` as the merger of the parent `defaults` and this
+        // Set `defaults` as the merger of the parent `defaults` and this 
         // object's `defaults`. If you overwrite this method, make sure to
         // include option merging logic.
         setup: function (base, fullName) {
@@ -896,10 +896,285 @@ define('can/construct',['can/util/string'], function (can) {
 * Copyright (c) 2013 Bitovi
 * Licensed MIT
 */
+define('can/control',['can/util/library', 'can/construct'], function (can) {
+    // ## control.js
+    // `can.Control`  
+    // _Controller_
+    // Binds an element, returns a function that unbinds.
+    var bind = function (el, ev, callback) {
+
+        can.bind.call(el, ev, callback);
+
+        return function () {
+            can.unbind.call(el, ev, callback);
+        };
+    },
+        isFunction = can.isFunction,
+        extend = can.extend,
+        each = can.each,
+        slice = [].slice,
+        paramReplacer = /\{([^\}]+)\}/g,
+        special = can.getObject("$.event.special", [can]) || {},
+
+        // Binds an element, returns a function that unbinds.
+        delegate = function (el, selector, ev, callback) {
+            can.delegate.call(el, selector, ev, callback);
+            return function () {
+                can.undelegate.call(el, selector, ev, callback);
+            };
+        },
+
+        // Calls bind or unbind depending if there is a selector.
+        binder = function (el, ev, callback, selector) {
+            return selector ? delegate(el, can.trim(selector), ev, callback) : bind(el, ev, callback);
+        },
+
+        basicProcessor;
+
+
+    var Control = can.Control = can.Construct(
+
+    {
+        // Setup pre-processes which methods are event listeners.
+        setup: function () {
+
+            // Allow contollers to inherit "defaults" from super-classes as it 
+            // done in `can.Construct`
+            can.Construct.setup.apply(this, arguments);
+
+            // If you didn't provide a name, or are `control`, don't do anything.
+            if (can.Control) {
+
+                // Cache the underscored names.
+                var control = this,
+                    funcName;
+
+                // Calculate and cache actions.
+                control.actions = {};
+                for (funcName in control.prototype) {
+                    if (control._isAction(funcName)) {
+                        control.actions[funcName] = control._action(funcName);
+                    }
+                }
+            }
+        },
+
+        // Moves `this` to the first argument, wraps it with `jQuery` if it's an element
+        _shifter: function (context, name) {
+
+            var method = typeof name == "string" ? context[name] : name;
+
+            if (!isFunction(method)) {
+                method = context[method];
+            }
+
+            return function () {
+                context.called = name;
+                return method.apply(context, [this.nodeName ? can.$(this) : this].concat(slice.call(arguments, 0)));
+            };
+        },
+
+        // Return `true` if is an action.
+        _isAction: function (methodName) {
+
+            var val = this.prototype[methodName],
+                type = typeof val;
+            // if not the constructor
+            return (methodName !== 'constructor') &&
+            // and is a function or links to a function
+            (type == "function" || (type == "string" && isFunction(this.prototype[val]))) &&
+            // and is in special, a processor, or has a funny character
+            !! (special[methodName] || processors[methodName] || /[^\w]/.test(methodName));
+        },
+        // Takes a method name and the options passed to a control
+        // and tries to return the data necessary to pass to a processor
+        // (something that binds things).
+        _action: function (methodName, options) {
+
+            // If we don't have options (a `control` instance), we'll run this 
+            // later.  
+            paramReplacer.lastIndex = 0;
+            if (options || !paramReplacer.test(methodName)) {
+                // If we have options, run sub to replace templates `{}` with a
+                // value from the options or the window
+                var convertedName = options ? can.sub(methodName, [options, window]) : methodName;
+                if (!convertedName) {
+                    return null;
+                }
+                // If a `{}` template resolves to an object, `convertedName` will be
+                // an array
+                var arr = can.isArray(convertedName),
+
+                    // Get the name
+                    name = arr ? convertedName[1] : convertedName,
+
+                    // Grab the event off the end
+                    parts = name.split(/\s+/g),
+                    event = parts.pop();
+
+                return {
+                    processor: processors[event] || basicProcessor,
+                    parts: [name, parts.join(" "), event],
+                    delegate: arr ? convertedName[0] : undefined
+                };
+            }
+        },
+        // An object of `{eventName : function}` pairs that Control uses to 
+        // hook up events auto-magically.
+        processors: {},
+        // A object of name-value pairs that act as default values for a 
+        // control instance
+        defaults: {}
+    },
+
+    {
+        // Sets `this.element`, saves the control in `data, binds event
+        // handlers.
+        setup: function (element, options) {
+
+            var cls = this.constructor,
+                pluginname = cls.pluginName || cls._fullName,
+                arr;
+
+            // Want the raw element here.
+            this.element = can.$(element)
+
+            if (pluginname && pluginname !== 'can_control') {
+                // Set element and `className` on element.
+                this.element.addClass(pluginname);
+            }
+
+            (arr = can.data(this.element, "controls")) || can.data(this.element, "controls", arr = []);
+            arr.push(this);
+
+            // Option merging.
+            this.options = extend({}, cls.defaults, options);
+
+            // Bind all event handlers.
+            this.on();
+
+            // Get's passed into `init`.
+            return [this.element, this.options];
+        },
+
+        on: function (el, selector, eventName, func) {
+            if (!el) {
+
+                // Adds bindings.
+                this.off();
+
+                // Go through the cached list of actions and use the processor 
+                // to bind
+                var cls = this.constructor,
+                    bindings = this._bindings,
+                    actions = cls.actions,
+                    element = this.element,
+                    destroyCB = can.Control._shifter(this, "destroy"),
+                    funcName, ready;
+
+                for (funcName in actions) {
+                    // Only push if we have the action and no option is `undefined`
+                    if (actions.hasOwnProperty(funcName) && (ready = actions[funcName] || cls._action(funcName, this.options))) {
+                        bindings.push(ready.processor(ready.delegate || element, ready.parts[2], ready.parts[1], funcName, this));
+                    }
+                }
+
+
+                // Setup to be destroyed...  
+                // don't bind because we don't want to remove it.
+                can.bind.call(element, "destroyed", destroyCB);
+                bindings.push(function (el) {
+                    can.unbind.call(el, "destroyed", destroyCB);
+                });
+                return bindings.length;
+            }
+
+            if (typeof el == 'string') {
+                func = eventName;
+                eventName = selector;
+                selector = el;
+                el = this.element;
+            }
+
+            if (func === undefined) {
+                func = eventName;
+                eventName = selector;
+                selector = null;
+            }
+
+            if (typeof func == 'string') {
+                func = can.Control._shifter(this, func);
+            }
+
+            this._bindings.push(binder(el, eventName, func, selector));
+
+            return this._bindings.length;
+        },
+        // Unbinds all event handlers on the controller.
+        off: function () {
+            var el = this.element[0]
+            each(this._bindings || [], function (value) {
+                value(el);
+            });
+            // Adds bindings.
+            this._bindings = [];
+        },
+        // Prepares a `control` for garbage collection
+        destroy: function () {
+            var Class = this.constructor,
+                pluginName = Class.pluginName || Class._fullName,
+                controls;
+
+            // Unbind bindings.
+            this.off();
+
+            if (pluginName && pluginName !== 'can_control') {
+                // Remove the `className`.
+                this.element.removeClass(pluginName);
+            }
+
+            // Remove from `data`.
+            controls = can.data(this.element, "controls");
+            controls.splice(can.inArray(this, controls), 1);
+
+            can.trigger(this, "destroyed"); // In case we want to know if the `control` is removed.
+            this.element = null;
+        }
+    });
+
+    var processors = can.Control.processors,
+        // Processors do the binding.
+        // They return a function that unbinds when called.  
+        // The basic processor that binds events.
+        basicProcessor = function (el, event, selector, methodName, control) {
+            return binder(el, event, can.Control._shifter(control, methodName), selector);
+        };
+
+    // Set common events to be processed as a `basicProcessor`
+    each(["change", "click", "contextmenu", "dblclick", "keydown", "keyup", "keypress", "mousedown", "mousemove", "mouseout", "mouseover", "mouseup", "reset", "resize", "scroll", "select", "submit", "focusin", "focusout", "mouseenter", "mouseleave",
+    // #104 - Add touch events as default processors
+    // TOOD feature detect?
+    "touchstart", "touchmove", "touchcancel", "touchend", "touchleave"], function (v) {
+        processors[v] = basicProcessor;
+    });
+
+    return Control;
+});
+define('can/control/route',[
+	'can/control'
+], function(){
+	
+});
+/*!
+* CanJS - 1.1.5 (2013-03-27)
+* http://canjs.us/
+* Copyright (c) 2013 Bitovi
+* Licensed MIT
+*/
 define('can/observe',['can/util/library', 'can/construct'], function (can) {
-    // ## observe.js
-    // `can.Observe`
-    // _Provides the observable pattern for JavaScript Objects._
+    // ## observe.js  
+    // `can.Observe`  
+    // _Provides the observable pattern for JavaScript Objects._  
     // Returns `true` if something is an object with properties of its own.
     var canMakeObserve = function (obj) {
         return obj && (can.isArray(obj) || can.isPlainObject(obj) || (obj instanceof can.Observe));
@@ -913,9 +1188,9 @@ define('can/observe',['can/util/library', 'can/construct'], function (can) {
                 }
             });
         },
-        // Listens to changes on `val` and "bubbles" the event up.
-        // `val` - The object to listen for changes on.
-        // `prop` - The property name is at on.
+        // Listens to changes on `val` and "bubbles" the event up.  
+        // `val` - The object to listen for changes on.  
+        // `prop` - The property name is at on.  
         // `parent` - The parent object of prop.
         // `ob` - (optional) The Observe object constructor
         // `list` - (optional) The observable list constructor
@@ -941,7 +1216,7 @@ define('can/observe',['can/util/library', 'can/construct'], function (can) {
                     ev = args.shift();
                 args[0] = (prop === "*" ? [parent.indexOf(val), args[0]] : [prop, args[0]]).join(".");
 
-                // track objects dispatched on this observe
+                // track objects dispatched on this observe		
                 ev.triggeredNS = ev.triggeredNS || {};
 
                 // if it has already been dispatched exit
@@ -950,7 +1225,7 @@ define('can/observe',['can/util/library', 'can/construct'], function (can) {
                 }
 
                 ev.triggeredNS[parent._cid] = true;
-                // send change event with modified attr to parent
+                // send change event with modified attr to parent	
                 can.trigger(parent, ev, args);
                 // send modified attr event to parent
                 //can.trigger(parent, args[0], args);
@@ -961,9 +1236,9 @@ define('can/observe',['can/util/library', 'can/construct'], function (can) {
 
         // An `id` to track events for a given observe.
         observeId = 0,
-        // A helper used to serialize an `Observe` or `Observe.List`.
-        // `observe` - The observable.
-        // `how` - To serialize with `attr` or `serialize`.
+        // A helper used to serialize an `Observe` or `Observe.List`.  
+        // `observe` - The observable.  
+        // `how` - To serialize with `attr` or `serialize`.  
         // `where` - To put properties, in an `{}` or `[]`.
         serialize = function (observe, how, where) {
             // Go through each property.
@@ -1556,698 +1831,10 @@ define('can/observe',['can/util/library', 'can/construct'], function (can) {
 * Copyright (c) 2013 Bitovi
 * Licensed MIT
 */
-define('can/util/string/deparam',['can/util/library', 'can/util/string'], function (can) {
-
-    // ## deparam.js
-    // `can.deparam`
-    // _Takes a string of name value pairs and returns a Object literal that represents those params._
-    var digitTest = /^\d+$/,
-        keyBreaker = /([^\[\]]+)|(\[\])/g,
-        paramTest = /([^?#]*)(#.*)?$/,
-        prep = function (str) {
-            return decodeURIComponent(str.replace(/\+/g, " "));
-        };
-
-
-    can.extend(can, {
-
-        deparam: function (params) {
-
-            var data = {},
-                pairs, lastPart;
-
-            if (params && paramTest.test(params)) {
-
-                pairs = params.split('&'),
-
-                can.each(pairs, function (pair) {
-
-                    var parts = pair.split('='),
-                        key = prep(parts.shift()),
-                        value = prep(parts.join("=")),
-                        current = data;
-
-                    if (key) {
-                        parts = key.match(keyBreaker);
-
-                        for (var j = 0, l = parts.length - 1; j < l; j++) {
-                            if (!current[parts[j]]) {
-                                // If what we are pointing to looks like an `array`
-                                current[parts[j]] = digitTest.test(parts[j + 1]) || parts[j + 1] == "[]" ? [] : {};
-                            }
-                            current = current[parts[j]];
-                        }
-                        lastPart = parts.pop();
-                        if (lastPart == "[]") {
-                            current.push(value);
-                        } else {
-                            current[lastPart] = value;
-                        }
-                    }
-                });
-            }
-            return data;
-        }
-    });
-    return can;
-});
-/*!
-* CanJS - 1.1.5 (2013-03-27)
-* http://canjs.us/
-* Copyright (c) 2013 Bitovi
-* Licensed MIT
-*/
-define('can/route',['can/util/library', 'can/observe', 'can/util/string/deparam'], function (can) {
-
-    // ## route.js
-    // `can.route`
-    // _Helps manage browser history (and client state) by synchronizing the
-    // `window.location.hash` with a `can.Observe`._
-    // Helper methods used for matching routes.
-    var
-    // `RegExp` used to match route variables of the type ':name'.
-    // Any word character or a period is matched.
-    matcher = /\:([\w\.]+)/g,
-        // Regular expression for identifying &amp;key=value lists.
-        paramsMatcher = /^(?:&[^=]+=[^&]*)+/,
-        // Converts a JS Object into a list of parameters that can be
-        // inserted into an html element tag.
-        makeProps = function (props) {
-            var tags = [];
-            can.each(props, function (val, name) {
-                tags.push((name === 'className' ? 'class' : name) + '="' + (name === "href" ? val : can.esc(val)) + '"');
-            });
-            return tags.join(" ");
-        },
-        // Checks if a route matches the data provided. If any route variable
-        // is not present in the data, the route does not match. If all route
-        // variables are present in the data, the number of matches is returned
-        // to allow discerning between general and more specific routes.
-        matchesData = function (route, data) {
-            var count = 0,
-                i = 0,
-                defaults = {};
-            // look at default values, if they match ...
-            for (var name in route.defaults) {
-                if (route.defaults[name] === data[name]) {
-                    // mark as matched
-                    defaults[name] = 1;
-                    count++;
-                }
-            }
-            for (; i < route.names.length; i++) {
-                if (!data.hasOwnProperty(route.names[i])) {
-                    return -1;
-                }
-                if (!defaults[route.names[i]]) {
-                    count++;
-                }
-
-            }
-
-            return count;
-        },
-        onready = !0,
-        location = window.location,
-        wrapQuote = function (str) {
-            return (str + '').replace(/([.?*+\^$\[\]\\(){}|\-])/g, "\\$1");
-        },
-        each = can.each,
-        extend = can.extend;
-
-    can.route = function (url, defaults) {
-        defaults = defaults || {};
-        // Extract the variable names and replace with `RegExp` that will match
-        // an atual URL with values.
-        var names = [],
-            test = url.replace(matcher, function (whole, name, i) {
-                names.push(name);
-                var next = "\\" + (url.substr(i + whole.length, 1) || can.route._querySeparator);
-                // a name without a default value HAS to have a value
-                // a name that has a default value can be empty
-                // The `\\` is for string-escaping giving single `\` for `RegExp` escaping.
-                return "([^" + next + "]" + (defaults[name] ? "*" : "+") + ")";
-            });
-
-        // Add route in a form that can be easily figured out.
-        can.route.routes[url] = {
-            // A regular expression that will match the route when variable values
-            // are present; i.e. for `:page/:type` the `RegExp` is `/([\w\.]*)/([\w\.]*)/` which
-            // will match for any value of `:page` and `:type` (word chars or period).
-            test: new RegExp("^" + test + "($|" + wrapQuote(can.route._querySeparator) + ")"),
-            // The original URL, same as the index for this entry in routes.
-            route: url,
-            // An `array` of all the variable names in this route.
-            names: names,
-            // Default values provided for the variables.
-            defaults: defaults,
-            // The number of parts in the URL separated by `/`.
-            length: url.split('/').length
-        };
-        return can.route;
-    };
-
-    extend(can.route, {
-
-        _querySeparator: '&',
-        _paramsMatcher: paramsMatcher,
-
-
-        param: function (data, _setRoute) {
-            // Check if the provided data keys match the names in any routes;
-            // Get the one with the most matches.
-            var route,
-            // Need to have at least 1 match.
-            matches = 0,
-                matchCount, routeName = data.route,
-                propCount = 0;
-
-            delete data.route;
-
-            each(data, function () {
-                propCount++;
-            });
-            // Otherwise find route.
-            each(can.route.routes, function (temp, name) {
-                // best route is the first with all defaults matching
-
-                matchCount = matchesData(temp, data);
-                if (matchCount > matches) {
-                    route = temp;
-                    matches = matchCount;
-                }
-                if (matchCount >= propCount) {
-                    return false;
-                }
-            });
-            // If we have a route name in our `can.route` data, and it's
-            // just as good as what currently matches, use that
-            if (can.route.routes[routeName] && matchesData(can.route.routes[routeName], data) === matches) {
-                route = can.route.routes[routeName];
-            }
-            // If this is match...
-            if (route) {
-                var cpy = extend({}, data),
-                    // Create the url by replacing the var names with the provided data.
-                    // If the default value is found an empty string is inserted.
-                    res = route.route.replace(matcher, function (whole, name) {
-                        delete cpy[name];
-                        return data[name] === route.defaults[name] ? "" : encodeURIComponent(data[name]);
-                    }),
-                    after;
-                // Remove matching default values
-                each(route.defaults, function (val, name) {
-                    if (cpy[name] === val) {
-                        delete cpy[name];
-                    }
-                });
-
-                // The remaining elements of data are added as
-                // `&amp;` separated parameters to the url.
-                after = can.param(cpy);
-                // if we are paraming for setting the hash
-                // we also want to make sure the route value is updated
-                if (_setRoute) {
-                    can.route.attr('route', route.route);
-                }
-                return res + (after ? can.route._querySeparator + after : "");
-            }
-            // If no route was found, there is no hash URL, only paramters.
-            return can.isEmptyObject(data) ? "" : can.route._querySeparator + can.param(data);
-        },
-
-        deparam: function (url) {
-            // See if the url matches any routes by testing it against the `route.test` `RegExp`.
-            // By comparing the URL length the most specialized route that matches is used.
-            var route = {
-                length: -1
-            };
-            each(can.route.routes, function (temp, name) {
-                if (temp.test.test(url) && temp.length > route.length) {
-                    route = temp;
-                }
-            });
-            // If a route was matched.
-            if (route.length > -1) {
-
-                var // Since `RegExp` backreferences are used in `route.test` (parens)
-                // the parts will contain the full matched string and each variable (back-referenced) value.
-                parts = url.match(route.test),
-                    // Start will contain the full matched string; parts contain the variable values.
-                    start = parts.shift(),
-                    // The remainder will be the `&amp;key=value` list at the end of the URL.
-                    remainder = url.substr(start.length - (parts[parts.length - 1] === can.route._querySeparator ? 1 : 0)),
-                    // If there is a remainder and it contains a `&amp;key=value` list deparam it.
-                    obj = (remainder && can.route._paramsMatcher.test(remainder)) ? can.deparam(remainder.slice(1)) : {};
-
-                // Add the default values for this route.
-                obj = extend(true, {}, route.defaults, obj);
-                // Overwrite each of the default values in `obj` with those in
-                // parts if that part is not empty.
-                each(parts, function (part, i) {
-                    if (part && part !== can.route._querySeparator) {
-                        obj[route.names[i]] = decodeURIComponent(part);
-                    }
-                });
-                obj.route = route.route;
-                return obj;
-            }
-            // If no route was matched, it is parsed as a `&amp;key=value` list.
-            if (url.charAt(0) !== can.route._querySeparator) {
-                url = can.route._querySeparator + url;
-            }
-            return can.route._paramsMatcher.test(url) ? can.deparam(url.slice(1)) : {};
-        },
-
-        data: new can.Observe({}),
-
-        routes: {},
-
-        ready: function (val) {
-            if (val === false) {
-                onready = val;
-            }
-            if (val === true || onready === true) {
-                can.route._setup();
-                setState();
-            }
-            return can.route;
-        },
-
-        url: function (options, merge) {
-            if (merge) {
-                options = extend({}, curParams, options)
-            }
-            return "#!" + can.route.param(options);
-        },
-
-        link: function (name, options, props, merge) {
-            return "<a " + makeProps(
-            extend({
-                href: can.route.url(options, merge)
-            }, props)) + ">" + name + "</a>";
-        },
-
-        current: function (options) {
-            return location.hash == "#!" + can.route.param(options)
-        },
-        _setup: function () {
-            // If the hash changes, update the `can.route.data`.
-            can.bind.call(window, 'hashchange', setState);
-        },
-        _getHash: function () {
-            return location.href.split(/#!?/)[1] || "";
-        },
-        _setHash: function (serialized) {
-            var path = (can.route.param(serialized, true));
-            location.hash = "#!" + path;
-            return path;
-        }
-    });
-
-
-    // The functions in the following list applied to `can.route` (e.g. `can.route.attr('...')`) will
-    // instead act on the `can.route.data` observe.
-    each(['bind', 'unbind', 'delegate', 'undelegate', 'attr', 'removeAttr'], function (name) {
-        can.route[name] = function () {
-            return can.route.data[name].apply(can.route.data, arguments)
-        }
-    })
-
-    var // A ~~throttled~~ debounced function called multiple times will only fire once the
-    // timer runs down. Each call resets the timer.
-    timer,
-    // Intermediate storage for `can.route.data`.
-    curParams,
-    // Deparameterizes the portion of the hash of interest and assign the
-    // values to the `can.route.data` removing existing values no longer in the hash.
-    // setState is called typically by hashchange which fires asynchronously
-    // So it's possible that someone started changing the data before the
-    // hashchange event fired.  For this reason, it will not set the route data
-    // if the data is changing or the hash already matches the hash that was set.
-    setState = can.route.setState = function () {
-        var hash = can.route._getHash();
-        curParams = can.route.deparam(hash);
-
-        // if the hash data is currently changing, or
-        // the hash is what we set it to anyway, do NOT change the hash
-        if (!changingData || hash !== lastHash) {
-            can.route.attr(curParams, true);
-        }
-    },
-        // The last hash caused by a data change
-        lastHash,
-        // Are data changes pending that haven't yet updated the hash
-        changingData;
-
-    // If the `can.route.data` changes, update the hash.
-    // Using `.serialize()` retrieves the raw data contained in the `observable`.
-    // This function is ~~throttled~~ debounced so it only updates once even if multiple values changed.
-    // This might be able to use batchNum and avoid this.
-    can.route.bind("change", function (ev, attr) {
-        // indicate that data is changing
-        changingData = 1;
-        clearTimeout(timer);
-        timer = setTimeout(function () {
-            // indicate that the hash is set to look like the data
-            changingData = 0;
-            var serialized = can.route.data.serialize();
-
-            lastHash = can.route._setHash(serialized);
-        }, 1);
-    });
-    // `onready` event...
-    can.bind.call(document, "ready", can.route.ready);
-
-    // Libraries other than jQuery don't execute the document `ready` listener
-    // if we are already DOM ready
-    if ((document.readyState === 'complete' || document.readyState === "interactive") && onready) {
-        can.route.ready();
-    }
-
-    // extend route to have a similar property
-    // that is often checked in mustache to determine
-    // an object's observability
-    can.route.constructor.canMakeObserve = can.Observe.canMakeObserve;
-
-    return can.route;
-});
-/*!
-* CanJS - 1.1.5 (2013-03-27)
-* http://canjs.us/
-* Copyright (c) 2013 Bitovi
-* Licensed MIT
-*/
-define('can/control',['can/util/library', 'can/construct'], function (can) {
-    // ## control.js
-    // `can.Control`
-    // _Controller_
-    // Binds an element, returns a function that unbinds.
-    var bind = function (el, ev, callback) {
-
-        can.bind.call(el, ev, callback);
-
-        return function () {
-            can.unbind.call(el, ev, callback);
-        };
-    },
-        isFunction = can.isFunction,
-        extend = can.extend,
-        each = can.each,
-        slice = [].slice,
-        paramReplacer = /\{([^\}]+)\}/g,
-        special = can.getObject("$.event.special", [can]) || {},
-
-        // Binds an element, returns a function that unbinds.
-        delegate = function (el, selector, ev, callback) {
-            can.delegate.call(el, selector, ev, callback);
-            return function () {
-                can.undelegate.call(el, selector, ev, callback);
-            };
-        },
-
-        // Calls bind or unbind depending if there is a selector.
-        binder = function (el, ev, callback, selector) {
-            return selector ? delegate(el, can.trim(selector), ev, callback) : bind(el, ev, callback);
-        },
-
-        basicProcessor;
-
-
-    var Control = can.Control = can.Construct(
-
-    {
-        // Setup pre-processes which methods are event listeners.
-        setup: function () {
-
-            // Allow contollers to inherit "defaults" from super-classes as it
-            // done in `can.Construct`
-            can.Construct.setup.apply(this, arguments);
-
-            // If you didn't provide a name, or are `control`, don't do anything.
-            if (can.Control) {
-
-                // Cache the underscored names.
-                var control = this,
-                    funcName;
-
-                // Calculate and cache actions.
-                control.actions = {};
-                for (funcName in control.prototype) {
-                    if (control._isAction(funcName)) {
-                        control.actions[funcName] = control._action(funcName);
-                    }
-                }
-            }
-        },
-
-        // Moves `this` to the first argument, wraps it with `jQuery` if it's an element
-        _shifter: function (context, name) {
-
-            var method = typeof name == "string" ? context[name] : name;
-
-            if (!isFunction(method)) {
-                method = context[method];
-            }
-
-            return function () {
-                context.called = name;
-                return method.apply(context, [this.nodeName ? can.$(this) : this].concat(slice.call(arguments, 0)));
-            };
-        },
-
-        // Return `true` if is an action.
-        _isAction: function (methodName) {
-
-            var val = this.prototype[methodName],
-                type = typeof val;
-            // if not the constructor
-            return (methodName !== 'constructor') &&
-            // and is a function or links to a function
-            (type == "function" || (type == "string" && isFunction(this.prototype[val]))) &&
-            // and is in special, a processor, or has a funny character
-            !! (special[methodName] || processors[methodName] || /[^\w]/.test(methodName));
-        },
-        // Takes a method name and the options passed to a control
-        // and tries to return the data necessary to pass to a processor
-        // (something that binds things).
-        _action: function (methodName, options) {
-
-            // If we don't have options (a `control` instance), we'll run this
-            // later.
-            paramReplacer.lastIndex = 0;
-            if (options || !paramReplacer.test(methodName)) {
-                // If we have options, run sub to replace templates `{}` with a
-                // value from the options or the window
-                var convertedName = options ? can.sub(methodName, [options, window]) : methodName;
-                if (!convertedName) {
-                    return null;
-                }
-                // If a `{}` template resolves to an object, `convertedName` will be
-                // an array
-                var arr = can.isArray(convertedName),
-
-                    // Get the name
-                    name = arr ? convertedName[1] : convertedName,
-
-                    // Grab the event off the end
-                    parts = name.split(/\s+/g),
-                    event = parts.pop();
-
-                return {
-                    processor: processors[event] || basicProcessor,
-                    parts: [name, parts.join(" "), event],
-                    delegate: arr ? convertedName[0] : undefined
-                };
-            }
-        },
-        // An object of `{eventName : function}` pairs that Control uses to
-        // hook up events auto-magically.
-        processors: {},
-        // A object of name-value pairs that act as default values for a
-        // control instance
-        defaults: {}
-    },
-
-    {
-        // Sets `this.element`, saves the control in `data, binds event
-        // handlers.
-        setup: function (element, options) {
-
-            var cls = this.constructor,
-                pluginname = cls.pluginName || cls._fullName,
-                arr;
-
-            // Want the raw element here.
-            this.element = can.$(element)
-
-            if (pluginname && pluginname !== 'can_control') {
-                // Set element and `className` on element.
-                this.element.addClass(pluginname);
-            }
-
-            (arr = can.data(this.element, "controls")) || can.data(this.element, "controls", arr = []);
-            arr.push(this);
-
-            // Option merging.
-            this.options = extend({}, cls.defaults, options);
-
-            // Bind all event handlers.
-            this.on();
-
-            // Get's passed into `init`.
-            return [this.element, this.options];
-        },
-
-        on: function (el, selector, eventName, func) {
-            if (!el) {
-
-                // Adds bindings.
-                this.off();
-
-                // Go through the cached list of actions and use the processor
-                // to bind
-                var cls = this.constructor,
-                    bindings = this._bindings,
-                    actions = cls.actions,
-                    element = this.element,
-                    destroyCB = can.Control._shifter(this, "destroy"),
-                    funcName, ready;
-
-                for (funcName in actions) {
-                    // Only push if we have the action and no option is `undefined`
-                    if (actions.hasOwnProperty(funcName) && (ready = actions[funcName] || cls._action(funcName, this.options))) {
-                        bindings.push(ready.processor(ready.delegate || element, ready.parts[2], ready.parts[1], funcName, this));
-                    }
-                }
-
-
-                // Setup to be destroyed...
-                // don't bind because we don't want to remove it.
-                can.bind.call(element, "destroyed", destroyCB);
-                bindings.push(function (el) {
-                    can.unbind.call(el, "destroyed", destroyCB);
-                });
-                return bindings.length;
-            }
-
-            if (typeof el == 'string') {
-                func = eventName;
-                eventName = selector;
-                selector = el;
-                el = this.element;
-            }
-
-            if (func === undefined) {
-                func = eventName;
-                eventName = selector;
-                selector = null;
-            }
-
-            if (typeof func == 'string') {
-                func = can.Control._shifter(this, func);
-            }
-
-            this._bindings.push(binder(el, eventName, func, selector));
-
-            return this._bindings.length;
-        },
-        // Unbinds all event handlers on the controller.
-        off: function () {
-            var el = this.element[0]
-            each(this._bindings || [], function (value) {
-                value(el);
-            });
-            // Adds bindings.
-            this._bindings = [];
-        },
-        // Prepares a `control` for garbage collection
-        destroy: function () {
-            var Class = this.constructor,
-                pluginName = Class.pluginName || Class._fullName,
-                controls;
-
-            // Unbind bindings.
-            this.off();
-
-            if (pluginName && pluginName !== 'can_control') {
-                // Remove the `className`.
-                this.element.removeClass(pluginName);
-            }
-
-            // Remove from `data`.
-            controls = can.data(this.element, "controls");
-            controls.splice(can.inArray(this, controls), 1);
-
-            can.trigger(this, "destroyed"); // In case we want to know if the `control` is removed.
-            this.element = null;
-        }
-    });
-
-    var processors = can.Control.processors,
-        // Processors do the binding.
-        // They return a function that unbinds when called.
-        // The basic processor that binds events.
-        basicProcessor = function (el, event, selector, methodName, control) {
-            return binder(el, event, can.Control._shifter(control, methodName), selector);
-        };
-
-    // Set common events to be processed as a `basicProcessor`
-    each(["change", "click", "contextmenu", "dblclick", "keydown", "keyup", "keypress", "mousedown", "mousemove", "mouseout", "mouseover", "mouseup", "reset", "resize", "scroll", "select", "submit", "focusin", "focusout", "mouseenter", "mouseleave",
-    // #104 - Add touch events as default processors
-    // TOOD feature detect?
-    "touchstart", "touchmove", "touchcancel", "touchend", "touchleave"], function (v) {
-        processors[v] = basicProcessor;
-    });
-
-    return Control;
-});
-/*!
-* CanJS - 1.1.5 (2013-03-27)
-* http://canjs.us/
-* Copyright (c) 2013 Bitovi
-* Licensed MIT
-*/
-define('can/control/route',['can/util/library', 'can/route', 'can/control'], function (can) {
-
-    // ## control/route.js
-    // _Controller route integration._
-    can.Control.processors.route = function (el, event, selector, funcName, controller) {
-        selector = selector || "";
-        can.route(selector);
-        var batchNum, check = function (ev, attr, how) {
-            if (can.route.attr('route') === (selector) && (ev.batchNum === undefined || ev.batchNum !== batchNum)) {
-
-                batchNum = ev.batchNum;
-
-                var d = can.route.attr();
-                delete d.route;
-                if (can.isFunction(controller[funcName])) {
-                    controller[funcName](d);
-                } else {
-                    controller[controller[funcName]](d);
-                }
-
-            }
-        };
-        can.route.bind('change', check);
-        return function () {
-            can.route.unbind('change', check);
-        };
-    };
-
-    return can;
-});
-/*!
-* CanJS - 1.1.5 (2013-03-27)
-* http://canjs.us/
-* Copyright (c) 2013 Bitovi
-* Licensed MIT
-*/
 define('can/model',['can/util/library', 'can/observe'], function (can) {
 
-    // ## model.js
-    // `can.Model`
+    // ## model.js  
+    // `can.Model`  
     // _A `can.Observe` that connects to a RESTful interface._
     // Generic deferred piping function
     var pipe = function (def, model, func) {
@@ -2351,11 +1938,11 @@ define('can/model',['can/util/library', 'can/observe'], function (can) {
             return deferred;
         },
 
-        // This object describes how to make an ajax request for each ajax method.
+        // This object describes how to make an ajax request for each ajax method.  
         // The available properties are:
-        //    `url` - The default url to use as indicated as a property on the model.
-        //    `type` - The default http request type
-        //    `data` - A method that takes the `arguments` and returns `data` used for ajax.
+        //		`url` - The default url to use as indicated as a property on the model.
+        //		`type` - The default http request type
+        //		`data` - A method that takes the `arguments` and returns `data` used for ajax.
         ajaxMethods = {
 
             create: {
@@ -2393,8 +1980,8 @@ define('can/model',['can/util/library', 'can/observe'], function (can) {
             findOne: {}
         },
         // Makes an ajax request `function` from a string.
-        //    `ajaxMethod` - The `ajaxMethod` object defined above.
-        //    `str` - The string the user provided. Ex: `findAll: "/recipes.json"`.
+        //		`ajaxMethod` - The `ajaxMethod` object defined above.
+        //		`str` - The string the user provided. Ex: `findAll: "/recipes.json"`.
         ajaxMaker = function (ajaxMethod, str) {
             // Return a `function` that serves as the ajax method.
             return function (data) {
@@ -2646,7 +2233,7 @@ define('can/model',['can/util/library', 'can/observe'], function (can) {
         };
     });
 
-    // Model lists are just like `Observe.List` except that when their items are
+    // Model lists are just like `Observe.List` except that when their items are 
     // destroyed, it automatically gets removed from the list.
     var ML = can.Model.List = can.Observe.List({
         setup: function () {
@@ -2674,7 +2261,7 @@ define('can/model',['can/util/library', 'can/observe'], function (can) {
 */
 define('can/view',['can/util/library'], function (can) {
     // ## view.js
-    // `can.view`
+    // `can.view`  
     // _Templating abstraction._
     var isFunction = can.isFunction,
         makeArray = can.makeArray,
@@ -2928,9 +2515,9 @@ define('can/view',['can/util/library'], function (can) {
             throw "can.view: No template or empty template:" + url;
         }
     },
-        // `Returns a `view` renderer deferred.
-        // `url` - The url to the template.
-        // `async` - If the ajax request should be asynchronous.
+        // `Returns a `view` renderer deferred.  
+        // `url` - The url to the template.  
+        // `async` - If the ajax request should be asynchronous.  
         // Returns a deferred.
         get = function (url, async) {
             var suffix = url.match(/\.[\w\d]+$/),
@@ -2978,7 +2565,7 @@ define('can/view',['can/util/library'], function (can) {
             // Set the template engine type.
             type = $view.types[suffix];
 
-            // If it is cached,
+            // If it is cached, 
             if ($view.cached[id]) {
                 // Return the cached deferred renderer.
                 return $view.cached[id];
@@ -3129,7 +2716,7 @@ define('can/observe/compute',['can/util/library'], function (can) {
             var observing = {},
                 // a flag indicating if this observe/attr pair is already bound
                 matched = true,
-                // the data to return
+                // the data to return 
                 data = {
                     // we will maintain the value while live-binding is taking place
                     value: undefined,
@@ -3471,7 +3058,7 @@ define('can/view/scanner',['can/view'], function (can) {
                     buff.push(put_cmd, '"', clean(content), '"' + (bonus || '') + ');');
                 },
                 // A stack used to keep track of how we should end a bracket
-                // `}`.
+                // `}`.  
                 // Once we have a `<%= %>` with a `leftBracket`,
                 // we store how the file should end here (either `))` or `;`).
                 endStack = [],
@@ -3503,7 +3090,7 @@ define('can/view/scanner',['can/view'], function (can) {
                     case tmap.returnLeft:
                         magicInTag = htmlTag && 1;
                     case tmap.commentLeft:
-                        // A new line -- just add whatever content within a clean.
+                        // A new line -- just add whatever content within a clean.  
                         // Reset everything.
                         startTag = token;
                         if (content.length) {
@@ -3546,9 +3133,9 @@ define('can/view/scanner',['can/view'], function (can) {
                         // content.substr(-1) doesn't work in IE7/8
                         var emptyElement = content.substr(content.length - 1) == "/" || content.substr(content.length - 2) == "--";
                         // if there was a magic tag
-                        // or it's an element that has text content between its tags,
+                        // or it's an element that has text content between its tags, 
                         // but content is not other tags add a hookup
-                        // TODO: we should only add `can.EJS.pending()` if there's a magic tag
+                        // TODO: we should only add `can.EJS.pending()` if there's a magic tag 
                         // within the html tags.
                         if (magicInTag || !popTagName && tagToContentPropMap[tagNames[tagNames.length - 1]]) {
                             // make sure / of /> is on the left of pending
@@ -3634,7 +3221,7 @@ define('can/view/scanner',['can/view'], function (can) {
                                     after: ";"
                                 };
 
-                                // If we are ending a returning block,
+                                // If we are ending a returning block, 
                                 // add the finish text which returns the result of the
                                 // block.
                                 if (last.before) {
@@ -3811,7 +3398,7 @@ define('can/view/render',['can/view', 'can/util/string'], function (can) {
             }
         },
         pendingHookups = [],
-        // Returns text content for anything other than a live-binding
+        // Returns text content for anything other than a live-binding 
         contentText = function (input) {
 
             // If it's a string, return.
@@ -3988,7 +3575,7 @@ define('can/view/render',['can/view', 'can/util/string'], function (can) {
                 // Return an element tag with a hookup in place of the content
                 return "<" + tag + can.view.hook(
                 escape ?
-                // If we are escaping, replace the parentNode with
+                // If we are escaping, replace the parentNode with 
                 // a text node who's value is `func`'s return value.
 
 
@@ -4003,8 +3590,8 @@ define('can/view/render',['can/view', 'can/util/string'], function (can) {
                         node = document.createTextNode(binding.value);
 
                     // When iterating through an Observe.List with no DOM
-                    // elements containing the individual items, the parent
-                    // is sometimes incorrect not the true parent of the
+                    // elements containing the individual items, the parent 
+                    // is sometimes incorrect not the true parent of the 
                     // source element. (#153)
                     if (el.parentNode !== parent) {
                         parent = el.parentNode;
@@ -4129,7 +3716,7 @@ define('can/view/render',['can/view', 'can/util/string'], function (can) {
                     // Get the attribute value.
                     var attr = getAttr(el, attributeName, contentProp),
                         // Split the attribute value by the template.
-                        // Only split out the first __!!__ so if we have multiple hookups in the same attribute,
+                        // Only split out the first __!!__ so if we have multiple hookups in the same attribute, 
                         // they will be put in the right spot on first render
                         parts = attr.split(attributePlaceholder),
                         goodParts = [],
@@ -4221,7 +3808,7 @@ define('can/view/render',['can/view', 'can/util/string'], function (can) {
 */
 define('can/view/ejs',['can/util/library', 'can/view', 'can/util/string', 'can/observe/compute', 'can/view/scanner', 'can/view/render'], function (can) {
     // ## ejs.js
-    // `can.EJS`
+    // `can.EJS`  
     // _Embedded JavaScript Templates._
     // Helper methods.
     var extend = can.extend,
@@ -4312,6 +3899,9 @@ define('can/view/ejs',['can/util/library', 'can/view', 'can/util/string', 'can/o
 
     return can;
 });
+define('can/route',[],function(){
+	
+});
 /*!
 * CanJS - 1.1.5 (2013-03-27)
 * http://canjs.us/
@@ -4321,22 +3911,2504 @@ define('can/view/ejs',['can/util/library', 'can/view', 'can/util/string', 'can/o
 define('can',['can/util/library', 'can/control/route', 'can/model', 'can/view/ejs', 'can/route'], function (can) {
     return can;
 });
+/*
+ * jQuery JSONP Core Plugin 2.4.0 (2012-08-21)
+ *
+ * https://github.com/jaubourg/jquery-jsonp
+ *
+ * Copyright (c) 2012 Julian Aubourg
+ *
+ * This document is licensed as free software under the terms of the
+ * MIT License: http://www.opensource.org/licenses/mit-license.php
+ */
+( function( $ ) {
+
+	// ###################### UTILITIES ##
+
+	// Noop
+	function noop() {
+	}
+
+	// Generic callback
+	function genericCallback( data ) {
+		lastValue = [ data ];
+	}
+
+	// Call if defined
+	function callIfDefined( method , object , parameters ) {
+		return method && method.apply( object.context || object , parameters );
+	}
+
+	// Give joining character given url
+	function qMarkOrAmp( url ) {
+		return /\?/ .test( url ) ? "&" : "?";
+	}
+
+	var // String constants (for better minification)
+		STR_ASYNC = "async",
+		STR_CHARSET = "charset",
+		STR_EMPTY = "",
+		STR_ERROR = "error",
+		STR_INSERT_BEFORE = "insertBefore",
+		STR_JQUERY_JSONP = "_jqjsp",
+		STR_ON = "on",
+		STR_ON_CLICK = STR_ON + "click",
+		STR_ON_ERROR = STR_ON + STR_ERROR,
+		STR_ON_LOAD = STR_ON + "load",
+		STR_ON_READY_STATE_CHANGE = STR_ON + "readystatechange",
+		STR_READY_STATE = "readyState",
+		STR_REMOVE_CHILD = "removeChild",
+		STR_SCRIPT_TAG = "<script>",
+		STR_SUCCESS = "success",
+		STR_TIMEOUT = "timeout",
+
+		// Window
+		win = window,
+		// Deferred
+		Deferred = $.Deferred,
+		// Head element
+		head = $( "head" )[ 0 ] || document.documentElement,
+		// Page cache
+		pageCache = {},
+		// Counter
+		count = 0,
+		// Last returned value
+		lastValue,
+
+		// ###################### DEFAULT OPTIONS ##
+		xOptionsDefaults = {
+			//beforeSend: undefined,
+			//cache: false,
+			callback: STR_JQUERY_JSONP,
+			//callbackParameter: undefined,
+			//charset: undefined,
+			//complete: undefined,
+			//context: undefined,
+			//data: "",
+			//dataFilter: undefined,
+			//error: undefined,
+			//pageCache: false,
+			//success: undefined,
+			//timeout: 0,
+			//traditional: false,
+			url: location.href
+		},
+
+		// opera demands sniffing :/
+		opera = win.opera,
+
+		// IE < 10
+		oldIE = !!$( "<div>" ).html( "<!--[if IE]><i><![endif]-->" ).find("i").length;
+
+	// ###################### MAIN FUNCTION ##
+	function jsonp( xOptions ) {
+
+		// Build data with default
+		xOptions = $.extend( {} , xOptionsDefaults , xOptions );
+
+		// References to xOptions members (for better minification)
+		var successCallback = xOptions.success,
+			errorCallback = xOptions.error,
+			completeCallback = xOptions.complete,
+			dataFilter = xOptions.dataFilter,
+			callbackParameter = xOptions.callbackParameter,
+			successCallbackName = xOptions.callback,
+			cacheFlag = xOptions.cache,
+			pageCacheFlag = xOptions.pageCache,
+			charset = xOptions.charset,
+			url = xOptions.url,
+			data = xOptions.data,
+			timeout = xOptions.timeout,
+			pageCached,
+
+			// Abort/done flag
+			done = 0,
+
+			// Life-cycle functions
+			cleanUp = noop,
+
+			// Support vars
+			supportOnload,
+			supportOnreadystatechange,
+
+			// Request execution vars
+			firstChild,
+			script,
+			scriptAfter,
+			timeoutTimer;
+
+		// If we have Deferreds:
+		// - substitute callbacks
+		// - promote xOptions to a promise
+		Deferred && Deferred(function( defer ) {
+			defer.done( successCallback ).fail( errorCallback );
+			successCallback = defer.resolve;
+			errorCallback = defer.reject;
+		}).promise( xOptions );
+
+		// Create the abort method
+		xOptions.abort = function() {
+			!( done++ ) && cleanUp();
+		};
+
+		// Call beforeSend if provided (early abort if false returned)
+		if ( callIfDefined( xOptions.beforeSend , xOptions , [ xOptions ] ) === !1 || done ) {
+			return xOptions;
+		}
+
+		// Control entries
+		url = url || STR_EMPTY;
+		data = data ? ( (typeof data) == "string" ? data : $.param( data , xOptions.traditional ) ) : STR_EMPTY;
+
+		// Build final url
+		url += data ? ( qMarkOrAmp( url ) + data ) : STR_EMPTY;
+
+		// Add callback parameter if provided as option
+		callbackParameter && ( url += qMarkOrAmp( url ) + encodeURIComponent( callbackParameter ) + "=?" );
+
+		// Add anticache parameter if needed
+		!cacheFlag && !pageCacheFlag && ( url += qMarkOrAmp( url ) + "_" + ( new Date() ).getTime() + "=" );
+
+		// Replace last ? by callback parameter
+		url = url.replace( /=\?(&|$)/ , "=" + successCallbackName + "$1" );
+
+		// Success notifier
+		function notifySuccess( json ) {
+
+			if ( !( done++ ) ) {
+
+				cleanUp();
+				// Pagecache if needed
+				pageCacheFlag && ( pageCache [ url ] = { s: [ json ] } );
+				// Apply the data filter if provided
+				dataFilter && ( json = dataFilter.apply( xOptions , [ json ] ) );
+				// Call success then complete
+				callIfDefined( successCallback , xOptions , [ json , STR_SUCCESS, xOptions ] );
+				callIfDefined( completeCallback , xOptions , [ xOptions , STR_SUCCESS ] );
+
+			}
+		}
+
+		// Error notifier
+		function notifyError( type ) {
+
+			if ( !( done++ ) ) {
+
+				// Clean up
+				cleanUp();
+				// If pure error (not timeout), cache if needed
+				pageCacheFlag && type != STR_TIMEOUT && ( pageCache[ url ] = type );
+				// Call error then complete
+				callIfDefined( errorCallback , xOptions , [ xOptions , type ] );
+				callIfDefined( completeCallback , xOptions , [ xOptions , type ] );
+
+			}
+		}
+
+		// Check page cache
+		if ( pageCacheFlag && ( pageCached = pageCache[ url ] ) ) {
+
+			pageCached.s ? notifySuccess( pageCached.s[ 0 ] ) : notifyError( pageCached );
+
+		} else {
+
+			// Install the generic callback
+			// (BEWARE: global namespace pollution ahoy)
+			win[ successCallbackName ] = genericCallback;
+
+			// Create the script tag
+			script = $( STR_SCRIPT_TAG )[ 0 ];
+			script.id = STR_JQUERY_JSONP + count++;
+
+			// Set charset if provided
+			if ( charset ) {
+				script[ STR_CHARSET ] = charset;
+			}
+
+			opera && opera.version() < 11.60 ?
+				// onerror is not supported: do not set as async and assume in-order execution.
+				// Add a trailing script to emulate the event
+				( ( scriptAfter = $( STR_SCRIPT_TAG )[ 0 ] ).text = "document.getElementById('" + script.id + "')." + STR_ON_ERROR + "()" )
+			:
+				// onerror is supported: set the script as async to avoid requests blocking each others
+				( script[ STR_ASYNC ] = STR_ASYNC )
+
+			;
+
+			// Internet Explorer: event/htmlFor trick
+			if ( oldIE ) {
+				script.htmlFor = script.id;
+				script.event = STR_ON_CLICK;
+			}
+
+			// Attached event handlers
+			script[ STR_ON_LOAD ] = script[ STR_ON_ERROR ] = script[ STR_ON_READY_STATE_CHANGE ] = function ( result ) {
+
+				// Test readyState if it exists
+				if ( !script[ STR_READY_STATE ] || !/i/.test( script[ STR_READY_STATE ] ) ) {
+
+					try {
+
+						script[ STR_ON_CLICK ] && script[ STR_ON_CLICK ]();
+
+					} catch( _ ) {}
+
+					result = lastValue;
+					lastValue = 0;
+					result ? notifySuccess( result[ 0 ] ) : notifyError( STR_ERROR );
+
+				}
+			};
+
+			// Set source
+			script.src = url;
+
+			// Re-declare cleanUp function
+			cleanUp = function( i ) {
+				timeoutTimer && clearTimeout( timeoutTimer );
+				script[ STR_ON_READY_STATE_CHANGE ] = script[ STR_ON_LOAD ] = script[ STR_ON_ERROR ] = null;
+				head[ STR_REMOVE_CHILD ]( script );
+				scriptAfter && head[ STR_REMOVE_CHILD ]( scriptAfter );
+			};
+
+			// Append main script
+			head[ STR_INSERT_BEFORE ]( script , ( firstChild = head.firstChild ) );
+
+			// Append trailing script if needed
+			scriptAfter && head[ STR_INSERT_BEFORE ]( scriptAfter , firstChild );
+
+			// If a timeout is needed, install it
+			timeoutTimer = timeout > 0 && setTimeout( function() {
+				notifyError( STR_TIMEOUT );
+			} , timeout );
+
+		}
+
+		return xOptions;
+	}
+
+	// ###################### SETUP FUNCTION ##
+	jsonp.setup = function( xOptions ) {
+		$.extend( xOptionsDefaults , xOptions );
+	};
+
+	// ###################### INSTALL in jQuery ##
+	$.jsonp = jsonp;
+
+} )( jQuery );
+
+define("lib/jquery-jsonp/src/jquery.jsonp", function(){});
+
+define('scripts/components/price-generator/models/product-offers-model',[
+	'jquery',
+	'can',
+	'lib/jquery-jsonp/src/jquery.jsonp'
+], function( $, can ){
+
+	var OffersModel = can.Model(
+	{
+		marketSegment: 'COM',
+		countryCode: 'US',
+		landscape: 'prod',
+
+		timeout: 20000,
+		rootNode: 'productOffering',
+		requestCount: 0,
+
+		/**
+		 * Retrieves product offers for the given productKeys.
+		 * 
+		 * @param  {Object} params 
+		 *         productKeys {Array} required 
+		 *         marketSegment {String} defaults 'COM'
+		 *         countryCode {String} defaults 'US'
+		 *         promoCodes {Array} optional
+		 * @return {promise} resolves with OfferModel instance
+		 */
+		findAll: function( params ){
+			var countryCode = params.countryCode || this.countryCode,
+				landscape = params.landscape || this.landsscape,
+				queryString;
+
+			if( !params ){
+				throw new Error('Params not defined');
+			} 
+			else if( !params.productKeys ){
+				throw new Error('ProductKeys not defined in params!');
+			}
+			else if( !$.isArray( params.productKeys )){
+				throw new Error('ProductKeys not an Array!');
+			}
+
+			queryString = this.getCountryQueryString( this.getUpperCaseValue( countryCode ) );
+			queryString+= '&' + this.getMarketSegmentQueryString( params.marketSegment );
+			queryString+= '&' + this.getProductKeyQueryString( params.productKeys );
+
+			if( params.promoCodes && 
+				$.isArray( params.promoCodes ) &&
+				params.promoCodes.length ) {
+
+				queryString += '&' + this.getPromoCodesQueryString( params.promoCodes );
+			}
+
+			if( params.languageCode ){
+				queryString += '&language=' + params.languageCode;
+			}
+
+			/**
+			jquery-jsonp has better error handling mechanism.
+			*/
+			return $.jsonp ({
+				type: 'GET' ,
+				url: this.getUrl( countryCode, landscape )+"?callback=?" ,
+				callback: this.getCallbackName(),
+				data: queryString,
+				dataType: 'jsonp' ,
+				timeout: this.timeout
+			});
+		},
+
+		getUpperCaseValue: function( value )
+		{
+			if ( $.isValue( value ) ){
+				return value.toUpperCase();
+			}
+		},
+
+		getUrl: function( countryCode, landscape ){
+			var path = '/svcs/offers/products.json',
+				url = this.isNorthAmerica( countryCode ) ? '//store1.' : '//store2.';
+			
+			switch( landscape ){
+				case 'stage':
+					url += 'stage.';
+					break;
+				case 'pre-stage':
+					url += 'qa04.';
+					break;
+				case 'dev':
+					url += 'dev04.';	
+					break;
+			}
+
+			return url += 'adobe.com' + path;
+		},	
+
+		getCallbackName: function(){
+			return 'productOffers' + this.requestCount++;
+		},
+
+		isNorthAmerica: function( countryCode ){
+			return ( countryCode === 'US' || countryCode === 'CA' || countryCode === 'MX' );
+		},
+
+		getProductKeyQueryString: function( productKeys ){
+			return 'product_key=' + productKeys.join( '&product_key=' );
+		},
+
+		getCountryQueryString: function( countryCode ){
+			return 'countryCode=' + ( countryCode ? countryCode : this.countryCode );
+		},
+
+		getMarketSegmentQueryString: function( marketSegment ){
+			return 'marketSegment=' + ( marketSegment ? marketSegment : this.marketSegment );
+		},
+
+		getPromoCodesQueryString: function( promoCodes ){
+			return 'promotion_code=' + promoCodes.join(',');
+		},
+
+		models: function( attributes ){
+			return this.model( attributes[ this.rootNode ]);
+		}
+	},
+
+	{
+
+	});
+
+	return OffersModel;	
+});
+define('scripts/components/common/util/number-util',[
+], function(){
+
+	return {
+
+		/**
+		 * Formats the given number using the given format mask.
+		 * Rounds values and works with negative numbers. 
+		 * 
+		 * @param  {String} mask  Masking string ( '#,##0.00' )
+		 * @param  {Number} value The number to format
+		 * @return {String}       The number as a formated string.
+		 */
+		formatByMask: function( mask, value ){ 
+            if (!mask || isNaN(+value)) {
+                return value; //return as it is.
+            }
+            //convert any string to number according to formation sign.
+            value = mask.charAt(0) === '-'? -value: +value;
+            var isNegative = value<0? value= -value: 0; //process only abs(), and turn on flag.
+            
+            //search for separator for grp & decimal, anything not digit, not +/- sign, not #.
+            var result = mask.match(/[^\d\-\+#]/g);
+            var Decimal = (result && result[result.length-1]) || '.'; //treat the right most symbol as decimal 
+            var Group = (result && result[1] && result[0]) || ',';  //treat the left most symbol as group separator
+            
+            //split the decimal for the format string if any.
+            mask = mask.split( Decimal);
+            //Fix the decimal first, toFixed will auto fill trailing zero.
+            value = value.toFixed( mask[1] && mask[1].length);
+            value = +(value) + ''; //convert number to string to trim off *all* trailing decimal zero(es)
+
+            //fill back any trailing zero according to format
+            var pos_trail_zero = mask[1] && mask[1].lastIndexOf('0'); //look for last zero in format
+            var part = value.split('.');
+            //integer will get !part[1]
+            if (!part[1] || part[1] && part[1].length <= pos_trail_zero) {
+                value = (+value).toFixed( pos_trail_zero+1);
+            }
+            var szSep = mask[0].split( Group); //look for separator
+            mask[0] = szSep.join(''); //join back without separator for counting the pos of any leading 0.
+
+            var pos_lead_zero = mask[0] && mask[0].indexOf('0');
+            if (pos_lead_zero > -1 ) {
+                while (part[0].length < (mask[0].length - pos_lead_zero)) {
+                    part[0] = '0' + part[0];
+                }
+            }
+            else if (+part[0] === 0){
+                part[0] = '';
+            }
+            
+            value = value.split('.');
+            value[0] = part[0];
+            
+            //process the first group separator from decimal (.) only, the rest ignore.
+            //get the length of the last slice of split result.
+            var pos_separator = ( szSep[1] && szSep[ szSep.length-1].length);
+            if (pos_separator) {
+                var integer = value[0];
+                var str = '';
+                var offset = integer.length % pos_separator;
+                for (var i=0, l=integer.length; i<l; i++) { 
+                    
+                    str += integer.charAt(i); //ie6 only support charAt for sz.
+                    //-pos_separator so that won't trail separator on full length
+                    // acaciopp: to pass lint, had to change the following line from this:
+                    // if ( !( ( i-offset+1 ) % pos_separator ) && ( i<l-pos_separator )) {
+                    if ( ( ( i-offset+1 ) % pos_separator )===0 && ( i<l-pos_separator )) {
+                        str += Group;
+                    }
+                }
+                value[0] = str;
+            }
+
+            value[1] = (mask[1] && value[1])? Decimal+value[1] : "";
+            return (isNegative?'-':'') + value[0] + value[1]; //put back any negation and combine integer and fraction.
+        }
+
+	};
+	
+});
+/*!
+* CanJS - 1.1.5 (2013-03-27)
+* http://canjs.us/
+* Copyright (c) 2013 Bitovi
+* Licensed MIT
+*/
+define('can-proxy',['can/util/library', 'can/construct'], function (can, Construct) {
+    var isFunction = can.isFunction,
+        isArray = can.isArray,
+        makeArray = can.makeArray,
+
+        proxy = function (funcs) {
+
+            //args that should be curried
+            var args = makeArray(arguments),
+                self;
+
+            // get the functions to callback
+            funcs = args.shift();
+
+            // if there is only one function, make funcs into an array
+            if (!isArray(funcs)) {
+                funcs = [funcs];
+            }
+
+            // keep a reference to us in self
+            self = this;
+
+
+            return function class_cb() {
+                // add the arguments after the curried args
+                var cur = args.concat(makeArray(arguments)),
+                    isString, length = funcs.length,
+                    f = 0,
+                    func;
+
+                // go through each function to call back
+                for (; f < length; f++) {
+                    func = funcs[f];
+                    if (!func) {
+                        continue;
+                    }
+
+                    // set called with the name of the function on self (this is how this.view works)
+                    isString = typeof func == "string";
+
+                    // call the function
+                    cur = (isString ? self[func] : func).apply(self, cur || []);
+
+                    // pass the result to the next function (if there is a next function)
+                    if (f < length - 1) {
+                        cur = !isArray(cur) || cur._use_call ? [cur] : cur
+                    }
+                }
+                return cur;
+            }
+        }
+        can.Construct.proxy = can.Construct.prototype.proxy = proxy;
+    // this corrects the case where can/control loads after can/construct/proxy, so static props don't have proxy
+    var correctedClasses = [can.Observe, can.Control, can.Model],
+        i = 0;
+    for (; i < correctedClasses.length; i++) {
+        if (correctedClasses[i]) {
+            correctedClasses[i].proxy = proxy;
+        }
+    }
+    return can;
+});
+define('price-generator',[
+	'jquery',
+	'can',
+	'scripts/components/price-generator/models/product-offers-model',
+	'scripts/components/common/util/number-util',
+	'can-proxy'
+], function( $, can, ProductOffersModel, NumberUtil ){
+
+	var PriceGenerator = can.Construct(
+	{
+		defaults: {
+			landscape: 'prod', // ['prod' | 'stage' | 'pre-stage' | 'dev' ]
+			countryCode: 'US',
+			marketSegment: 'COM',
+			promoCodes: []
+		}
+	},
+	{
+		init: function( options ){
+			this.options = $.extend( {}, this.constructor.defaults, options );
+		},
+
+		getPrices : function( params ){
+			var options = $.extend( {}, this.options, params ),
+				deferred = new $.Deferred(),
+				self = this;
+
+			ProductOffersModel.findAll( options )
+								.done( this.proxy( "productPriceSuccess", deferred ) )
+								.fail( this.proxy( "productPriceFailed", deferred ) );
+
+			return deferred.promise();
+		},
+
+		productPriceSuccess: function( deferred, data ){
+			var priceObject = this.getPriceObjects( data );
+			if( $.isEmptyObject( priceObject ) ) {
+				deferred.reject( { errorType: 'NO_PRICE_DATA_FOUND' } );
+			} else{
+				deferred.resolve( priceObject );
+			}
+		},
+
+		productPriceFailed: function( deferred, data ){
+			deferred.reject( { errorType: 'INVALID_PRICE_REQUEST' } );
+		},
+
+		getPriceObjects : function( rawData ){
+			var currency = rawData.attr('currency'),
+				offers = rawData.attr('productOffers'),
+				data = {},
+				self = this;
+
+			try {
+				$.each( offers, function( index, offer ){
+					data[ offer.attr('productKey') ] = self.getProductPrices( currency, offer );
+				});
+			} catch( err ) { 
+				//do nothing
+			}
+			return data;
+		},
+
+		getProductPrices : function( currencyObj, offer ){
+			var self = this,
+				pricesObj = {};
+
+			$.each( offer.attr('priceMap'), function( index, price ){
+				pricesObj[ price.attr('priceTypeKey') ] = self.getPriceParts( currencyObj, price.attr( 'price' ));
+			});
+
+			return pricesObj;
+		},
+
+		getPriceParts : function( currencyObj, priceObj ){
+			var price = priceObj.display_price,
+				priceWithoutTax = priceObj.priceWithoutTax,
+				priceWithTax = priceObj.priceWithTax,
+				originalPrice = this.getOriginalPrice( priceObj ),
+				formatString = currencyObj.formatString,
+				priceParts = {
+					price : price,
+					priceWithoutTax : priceWithoutTax,
+					priceWithTax : priceWithTax,
+					formattedPrice : this.getFormattedPrice( currencyObj, price ),
+					formattedPriceWithoutTax : this.getFormattedPrice( currencyObj, priceWithoutTax ),
+					formattedPriceWithTax : this.getFormattedPrice( currencyObj, priceWithTax ),
+					symbol : this.getCurrencySymbol( currencyObj ),
+					decimalDelim : this.getDecimalDelim( currencyObj ),
+					thousandDelim : formatString.match(/#.(?=#)/)[0].replace(/#/,''),
+					includesTax : priceObj.attr('includes_tax')
+				};
+
+			if( originalPrice ){
+				priceParts.originalPrice = originalPrice;
+				priceParts.formattedOriginalPrice = this.getFormattedPrice( currencyObj, originalPrice );
+				priceParts.originalPriceWithTax = priceObj.orginalPriceWithTax;
+				priceParts.formattedOriginalPriceWithTax = this.getFormattedPrice( currencyObj, priceObj.orginalPriceWithTax );
+				priceParts.originalPriceWithoutTax = priceObj.orginalPriceWithoutTax;
+				priceParts.formattedOriginalPriceWithoutTax = this.getFormattedPrice( currencyObj, priceObj.orginalPriceWithoutTax );
+			}
+
+			return priceParts;
+		},
+
+		getOriginalPrice : function( priceObj ){
+			return  priceObj.includes_tax ? priceObj.orginalPriceWithTax : priceObj.orginalPriceWithoutTax;
+		},
+
+		getFormattedPrice : function( currencyObj, price ){
+			var symbol = this.getCurrencySymbol( currencyObj ), 
+				formatString = currencyObj.formatString,
+				mask = this.getNumberMask( currencyObj ),
+				formatedPrice = NumberUtil.formatByMask( mask, price );
+
+			return ( formatString.replace( /'.*'/, 'SYMBOL' ).replace(/#.*0/, formatedPrice ).replace( /SYMBOL/, symbol ));
+		},
+
+		getCurrencySymbol: function( currencyObj ){
+			var mask = currencyObj.formatString;
+			return mask.match( /'(.*?)'/ )[1];
+		},
+
+		getNumberMask : function( currencyObj ){
+			var formatString = currencyObj.formatString,
+				mask = $.trim( formatString.replace(/'.*'/, '')),
+				usePrecision = currencyObj.usePrecision;
+
+			return usePrecision ? mask : mask + '.';
+		},
+
+		getDecimalDelim : function( currencyObj ){
+			var formatString = currencyObj.formatString,
+				match = formatString.match(/0.(?=0)/);
+
+			return match ? match[0].replace(/0/,'') : '';
+		}
+	});
+
+	return PriceGenerator;
+	
+});
+define( 'scripts/components/common/util/lang',['jquery' ], function( $ ) {
+
+	/*
+	 * @class adobe/jquery/lang
+	 * @tag home
+	 * @test adobe/jquery/qunit.html
+	 *
+	 * Serveral of the methods in this plugin use code
+	 * adapted from YUI
+	 */
+
+	$.extend( {
+
+		/**
+		 * Returns a string representing the type of the item passed in.
+		 * @function type
+		 * @param o the item to test
+		 * @return {string} the detected type
+		 */
+		type: function( o ) {
+
+			var TYPES = {
+				'undefined': 'undefined',
+				'number': 'number',
+				'boolean': 'boolean',
+				'string': 'string',
+				'[object Function]': 'function',
+				'[object RegExp]': 'regexp',
+				'[object Array]': 'array',
+				'[object Date]': 'date',
+				'[object Error]': 'error'
+			};
+
+			return  TYPES[typeof o] || TYPES[ Object.prototype.toString.call( o )] || (o ? 'object' : 'null');
+		},
+
+		/**
+		 * Determines whether or not the provided item is a boolean
+		 * @function isBoolean
+		 * @static
+		 * @param o The object to test
+		 * @return {boolean} true if o is a boolean
+		 */
+		isBoolean: function( o ) {
+			return typeof o === 'boolean';
+		},
+
+		/**
+		 * Determines whether or not the provided item is null
+		 * @function isNull
+		 * @static
+		 * @param o The object to test
+		 * @return {boolean} true if o is null
+		 */
+		isNull: function( o ) {
+			return o === null;
+		},
+
+		/**
+		 * Determines whether or not the provided item is a legal number
+		 * @function isNumber
+		 * @static
+		 * @param o The object to test
+		 * @return {boolean} true if o is a number
+		 */
+		isNumber: function( o ) {
+			return typeof o === 'number' && isFinite( o );
+		},
+
+		/**
+		 * Determines whether or not the provided item is a string
+		 * @function isString
+		 * @static
+		 * @param o The object to test
+		 * @return {boolean} true if o is a string
+		 */
+		isString: function( o ) {
+			return typeof o === 'string';
+		},
+
+		/**
+		 * Determines whether or not the provided item is undefined
+		 * @function isUndefined
+		 * @static
+		 * @param o The object to test
+		 * @return {boolean} true if o is undefined
+		 */
+		isUndefined: function( o ) {
+			return typeof o === 'undefined';
+		},
+
+		/**
+		 * A convenience method for detecting a legitimate non-null value.
+		 * Returns false for null/undefined/NaN, true for other values,
+		 * including 0/false/''
+		 * @function isValue
+		 * @static
+		 * @param o The item to test
+		 * @return {boolean} true if it is not null/undefined/NaN || false
+		 */
+		isValue: function( o ) {
+			var t = this.type( o );
+			switch( t ) {
+			case 'number':
+				return isFinite( o );
+			case 'null':
+			case 'undefined':
+				return false;
+			default:
+				return !!(t);
+			}
+		},
+
+
+		/**
+		 * Determines whether or not the supplied item is a date instance
+		 * @function isDate
+		 * @static
+		 * @param o The object to test
+		 * @return {boolean} true if o is a date
+		 */
+		isDate: function( o ) {
+			// return o instanceof Date;
+			return this.type( o ) === 'date';
+		},
+
+		/**
+		 * @function timeStampToDate
+		 * @param {String} timestamp
+		 * @return {Date}
+		 */
+		timeStampToDate: function( timestamp ) {
+			var regex = new RegExp( "^([\\d]{4})-([\\d]{2})-([\\d]{2})T([\\d]{2}):([\\d]{2}):([\\d]{2}\\.?[\\d]{0,3})([\\+\\-])([\\d]{2}):([\\d]{2})$" ),
+				matches = regex.exec( timestamp ),
+				offset,
+				result;
+
+			if( matches != null ) {
+				offset = parseInt( matches[8], 10 ) * 60 + parseInt( matches[9], 10 );
+
+				if( matches[7] === "-" ) {
+					offset = -offset;
+				}
+
+				result = new Date(
+					Date.UTC(
+						parseInt( matches[1], 10 ),
+						parseInt( matches[2], 10 ) - 1,
+						parseInt( matches[3], 10 ),
+						parseInt( matches[4], 10 ),
+						parseInt( matches[5], 10 ),
+						parseInt( matches[6], 10 )
+					) - offset * 60 * 1000
+				);
+
+				return result;
+			}
+
+			return null;
+		},
+
+		/**
+		 * @function ISO8601DateString
+		 * @param {Date} timestamp
+		 * @return {String}
+		 */
+		ISO8601DateString : function (d) {
+			function pad(n){ return n<10 ? '0'+n : n; }
+			return d.getUTCFullYear()+'-' +
+				pad(d.getUTCMonth()+1)+'-' +
+				pad(d.getUTCDate())+'T' +
+				pad(d.getUTCHours())+':' +
+				pad(d.getUTCMinutes())+':' +
+				pad(d.getUTCSeconds())+'Z';
+		},
+
+		isPrimitive: function( o ) {
+			var t = this.type( o );
+			switch( t ) {
+			case 'undefined' :
+			case 'number' :
+			case 'boolean' :
+			case 'string' :
+				return true;
+			default:
+				return false;
+			}
+		},
+
+		/**
+		 * Returns true if the object contains a given key
+		 * @function hasKey
+		 * @static
+		 * @param o an object
+		 * @param k the key to query
+		 * @return {boolean} true if the object contains the key
+		 */
+		hasKey: function( o, k ) {
+			// return (o.hasOwnProperty(k));
+			return (k in o);
+		},
+
+		/**
+		 * Executes the supplied function on each item in the array.
+		 * Returning true from the processing function will stop the
+		 * processing of the remaining
+		 * items.
+		 * @function some
+		 * @param a {Array} the array to iterate
+		 * @param f {Function} the function to execute on each item. The function
+		 * receives three arguments: the value, the index, the full array.
+		 * @param o Optional context object
+		 * @static
+		 * @return {boolean} true if the function returns true on
+		 * any of the items in the array
+		 */
+		some: (Array.prototype.some) ?
+			function(a, f, o){
+				return Array.prototype.some.call(a, f, o);
+			} :
+			function(a, f, o){
+				var l = a.length, i;
+				for (i = 0; i < l; i = i + 1) {
+					if (f.call(o, a[i], i, a)) {
+						return true;
+					}
+				}
+				return false;
+			},
+
+
+		/**
+		 * Returns an object using the first array as keys, and
+		 * the second as values.  If the second array is not
+		 * provided the value is set to true for each.
+		 *
+		 * @function hash
+		 * @static
+		 * @param k {Array} keyset
+		 * @param v {Array} optional valueset
+		 * @return {object} the hash
+		 */
+		hash: function(k, v){
+			var o = {}, l = k.length, vl = v && v.length, i;
+			for (i = 0; i < l; i = i + 1) {
+				o[k[i]] = (vl && vl > i) ? v[i] : true;
+			}
+
+			return o;
+		},
+
+
+		/**
+		 * This will not be needed once we port to jmvc
+		 * @param {Object} ns
+		 */
+		createNs: function( ns ) {
+			var o, a;
+
+			a = ns.split( "." );
+			o = window[a[0]] = window[a[0]] || {};
+
+			$.each( a.slice( 1 ), function( i, n ) {
+				o = o[n] = o[n] || {};
+			} );
+
+			return o;
+		},
+
+		rgb2hex: function( rgb ) {
+			var hexDigits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"],
+				rgbVal = rgb.match( /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/ );
+
+			function hex( num ) {
+				return isNaN( num ) ? "00" : hexDigits[(num - num % 16) / 16] + hexDigits[num % 16];
+			}
+
+			return "#" + hex( rgbVal[1] ) + hex( rgbVal[2] ) + hex( rgbVal[3] );
+		},
+
+		localToGlobal: function( context, localX, localY ) {
+			// Get the position of the context element.
+			var result = {},
+				position = context.offset();
+
+			// Set the X/Y in the global context.
+			result.x = Math.floor( localX + position.left );
+			result.y = Math.floor( localY + position.top );
+
+			return result;
+		},
+
+		globalToLocal: function( context, globalX, globalY ) {
+			// Get the position of the context element.
+			var result = {},
+				position = context.offset();
+
+			// Set the X/Y in the local context.
+			result.x = Math.floor( globalX - position.left );
+			result.y = Math.floor( globalY - position.top );
+
+			return result;
+		}
+
+	} );
+
+	return jQuery;
+
+} );
+
+
+define('scripts/components/common/util/can-string-util',['can'], function (can) {
+    var strUndHash = /_|-/, 
+        strColons = /\=\=/, 
+        strWords = /([A-Z]+)([A-Z][a-z])/g, 
+        strLowUp = /([a-z\d])([A-Z])/g, 
+        strDash = /([a-z\d])([A-Z])/g, 
+        strReplacer = /\{([^\}]+)\}/g, 
+        strQuote = /"/g, 
+        strSingleQuote = /'/g, 
+        strHyphenMatch = /-+(.)?/g, 
+        strHyphenUndMatch = /(\-|_)+(.)?/g,
+        strCamelMatch = /[a-z][A-Z]/g, 
+        getNext = function (obj, prop, add) {
+            var result = obj[prop];
+            if (result === undefined && add === true) {
+                result = obj[prop] = {};
+            }
+            return result;
+        }, 
+        isContainer = function (current) {
+            return /^f|^o/.test(typeof current);
+        }, 
+        convertBadValues = function (content) {
+            var isInvalid = content === null || content === undefined || isNaN(content) && '' + content === 'NaN';
+            return '' + (isInvalid ? '' : content);
+        };
+
+    can.extend(can, {
+        esc: function (content) {
+            return convertBadValues(content).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(strQuote, '&#34;').replace(strSingleQuote, '&#39;');
+        },
+        getObject: function (name, roots, add) {
+            var parts = name ? name.split('.') : [], length = parts.length, current, r = 0, i, container, rootsLength;
+            roots = can.isArray(roots) ? roots : [roots || window];
+            rootsLength = roots.length;
+            if (!length) {
+                return roots[0];
+            }
+            for (r; r < rootsLength; r++) {
+                current = roots[r];
+                container = undefined;
+                for (i = 0; i < length && isContainer(current); i++) {
+                    container = current;
+                    current = getNext(container, parts[i]);
+                }
+                if (container !== undefined && current !== undefined) {
+                    break;
+                }
+            }
+            if (add === false && current !== undefined) {
+                delete container[parts[i - 1]];
+            }
+            if (add === true && current === undefined) {
+                current = roots[0];
+                for (i = 0; i < length && isContainer(current); i++) {
+                    current = getNext(current, parts[i], true);
+                }
+            }
+            return current;
+        },
+        capitalize: function (s, cache) {
+            return s.charAt(0).toUpperCase() + s.slice(1);
+        },
+        camelize: function (str) {
+            return convertBadValues(str).replace(strHyphenUndMatch, function (match, chr, chr2 ){ 
+                return chr2 ? chr2.toUpperCase() : '';
+            });
+        },
+        hyphenate: function (str) {
+            return convertBadValues(str).replace(strCamelMatch, function (str, offset) {
+                return str.charAt(0) + '-' + str.charAt(1).toLowerCase();
+            });
+        },
+        underscore: function (s) {
+            return s.replace(strColons, '/').replace(strWords, '$1_$2').replace(strLowUp, '$1_$2').replace(strDash, '_').toLowerCase();
+        },
+        sub: function (str, data, remove) {
+            var obs = [];
+            str = str || '';
+            obs.push(str.replace(strReplacer, function (whole, inside) {
+                var ob = can.getObject(inside, data, remove === true ? false : undefined);
+                if (ob === undefined || ob === null) {
+                    obs = null;
+                    return '';
+                }
+                if (isContainer(ob) && obs) {
+                    obs.push(ob);
+                    return '';
+                }
+                return '' + ob;
+            }));
+            return obs === null ? obs : obs.length <= 1 ? obs[0] : obs;
+        },
+        replacer: strReplacer,
+        undHash: strUndHash
+    });
+    return can;
+});
+/*!
+* CanJS - 1.1.5 (2013-03-27)
+* http://canjs.us/
+* Copyright (c) 2013 Bitovi
+* Licensed MIT
+*/
+define('can-super',['can/util/library', 'can/construct'], function (can, Construct) {
+
+    // tests if we can get super in .toString()
+    var isFunction = can.isFunction,
+
+        fnTest = /xyz/.test(function () {
+            xyz;
+        }) ? /\b_super\b/ : /.*/;
+
+    // overwrites a single property so it can still call super
+    can.Construct._overwrite = function (addTo, base, name, val) {
+        // Check if we're overwriting an existing function
+        addTo[name] = isFunction(val) && isFunction(base[name]) && fnTest.test(val) ? (function (name, fn) {
+            return function () {
+                var tmp = this._super,
+                    ret;
+
+                // Add a new ._super() method that is the same method
+                // but on the super-class
+                this._super = base[name];
+
+                // The method only need to be bound temporarily, so we
+                // remove it when we're done executing
+                ret = fn.apply(this, arguments);
+                this._super = tmp;
+                return ret;
+            };
+        })(name, val) : val;
+    }
+    // overwrites an object with methods, sets up _super
+    //   newProps - new properties
+    //   oldProps - where the old properties might be
+    //   addTo - what we are adding to
+    can.Construct._inherit = function (newProps, oldProps, addTo) {
+        addTo = addTo || newProps
+        for (var name in newProps) {
+            can.Construct._overwrite(addTo, oldProps, name, newProps[name]);
+        }
+    }
+
+    return can;
+});
+define('scripts/components/product-configurator/models/product-configuration-model',[
+	'jquery',
+	'can',
+	'scripts/components/common/util/lang',
+	'scripts/components/common/util/can-string-util',
+	'can-super'
+], function( $, can ){
+
+	var ConfigurationModel = can.Observe({
+
+		domains: {
+			'prod': 'store1.adobe.com',
+			'stage': 'store1.stage.adobe.com',
+			'pre-stage': 'store1.qa04.adobe.com',
+			'dev': 'store1.dev04.adobe.com'
+		},
+
+		rootNode: 'InlineConfigurator',
+
+		/**
+		 * 
+		 *
+		 **/
+		findAll: function( params ){
+			var deferred = new $.Deferred(),
+				url = this.getServiceUrl( params ),
+				self = this;
+
+			$.ajax({
+				url : url,
+				type: 'GET',
+				dataType: 'jsonp',
+				data: {
+					marketSegment: params.marketSegment,
+					countryCode: params.countryCode,
+					locale: this.getLocale( params )
+				},
+				jsonpCallback: this.getCallbackName( params.productKey )
+			}).then( function( rawData ){
+				
+				var data = self.processData( rawData[ self.rootNode ] ),
+					instance = new self( data );
+
+				deferred.resolve( instance );
+			}).fail( function( jqXHR, status, errorThrown ){
+				deferred.reject( { errorType: 'PRODUCT_DATA_NOT_FOUND' });
+			});
+
+			return deferred.promise();
+		},
+
+		getServiceUrl: function( params ){
+			var domain = this.domains[ params.landscape || 'prod' ];
+			return '//' + domain + '/svcs/products' + params.productKey + '/configurator.json';
+		},
+
+		getLocale: function( params ){
+			return params.languageCode + '_' + params.countryCode.toLowerCase();
+		},
+
+		getCallbackName: function( productKey ){
+			return "config" + productKey.replace(/\//g,'_');
+		},
+
+		processData: function( rawData ){
+
+			var data = {
+					productKey : rawData.productKey,
+					currency : rawData.currency,
+					configurationType : rawData.configurationType,
+					skus: this.normalizeResultSet( rawData.skus ),
+					createDate: new Date( rawData.create_date ),
+					priceDisplay: rawData.price_display 
+				};
+
+			if( rawData.qualifyingProducts ){
+				data.qualifyingProducts = this.normalizeResultSet( rawData.qualifyingProducts );
+			}
+
+			return data;
+		},
+
+		/**
+		 * Takes a resultSet object with a columns {Array} and data {Array} properties
+		 * and merges them into a single array of objects with named properties.
+		 **/
+		normalizeResultSet: function( resultSet ){
+			var rs = [],
+				propertyNames = this.normalizeColumnNames( resultSet.columns ),
+				records = resultSet.data;
+
+			$.each( records, function( idx, record ){
+
+				// clean up 'null' values
+				for( var prop in record.data ){
+					if( record.data[ prop ] === 'null'){
+						record.data[ prop ] = null;
+					}
+				}
+
+				rs.push( $.hash( propertyNames, record.data ));
+			});
+
+			return rs;
+		},
+
+		normalizeColumnNames: function( columns ){
+			var normalNames = [];
+			$.each( columns, function( idx, name ){
+				normalNames.push( can.camelize( name.toLowerCase() ));
+			});
+
+			return normalNames;
+		}
+
+	},
+	{
+		init: function(){
+			this.attr( 'filteredSkus', new can.Observe.List( [] ));
+			this.setupFilteredSkuData();
+		},
+
+		setupFilteredSkuData: function(){
+			this.attr( 'filteredSkus' ).replace( this.skus.slice( 0 ));
+			this.filterHistory = [];
+		},
+
+		filterProductData: function( fieldName, value ){
+
+			if( this.filterAppliedPreviously( fieldName )){
+				this.revertDataToEarlierState( fieldName );
+			}
+
+			this.applyFilter( fieldName, value );
+			this.saveFilter( fieldName, value );
+		},
+
+		getSkusWithDistinctFieldValues: function( fieldName ){
+			var distinctSkus = [],
+				values = {},
+				skus = this.attr('filteredSkus'),
+				len = skus.length,
+				sku,
+				value;
+
+			for( var i=0; i<len; i++ ){
+				sku = skus[ i ];
+				value = sku[ fieldName ];
+
+				// get unique values, ignoring null and ''
+				if( value !== '' && value !== null && !$.hasKey( values, value )){
+					values[ value ] = 1;
+					distinctSkus.push( sku );
+				}
+			}
+
+			return distinctSkus;
+		},
+
+		applyFilter: function( fieldName, value ){
+
+			var filteredData = this.attr( 'filteredSkus' ),
+				filterFunc = function( aRecord ){
+					return ( aRecord[ fieldName ] === value );
+				};
+
+			if( !$.isValue( value )){ 
+				return; 
+			}
+
+			filteredData = $.grep( filteredData, filterFunc );
+			this.attr( 'filteredSkus' ).replace( filteredData );
+		},
+
+		saveFilter: function( fieldName, value ){
+			var filterObj = {
+					fieldName: fieldName,
+					value: value,
+					data: this.filteredSkus.slice(0) //copy array
+				};
+
+			this.filterHistory.push( filterObj );
+		},
+
+		filterAppliedPreviously: function( fieldName ){
+			var func = function( aFilter ){
+					return ( aFilter.fieldName === fieldName );
+				};
+
+			return ( $.grep( this.filterHistory, func ).length > 0 );
+		},
+
+		revertDataToEarlierState: function( fieldName ){
+			var history = this.filterHistory;
+
+			this.rollbackFilters( fieldName );
+
+			if( history.length ) {
+				this.attr( 'filteredSkus' ).replace( history[ history.length-1 ].data );
+			} 
+			else {
+				this.attr( 'filteredSkus' ).replace( this.skus.slice( 0 ));
+			}
+		},
+
+		rollbackFilters: function( fieldName ){
+			var history = this.filterHistory,
+				currentFilter;
+
+			do {
+				currentFilter = history.pop();
+			}
+			while( currentFilter.fieldName !== fieldName );
+		},
+
+		resetAllFilters: function(){
+			this.setupFilteredSkuData();
+		}
+
+	});
+
+	return ConfigurationModel;
+});
+/**
+ * @license RequireJS text 2.0.14 Copyright (c) 2010-2014, The Dojo Foundation All Rights Reserved.
+ * Available via the MIT or new BSD license.
+ * see: http://github.com/requirejs/text for details
+ */
+/*jslint regexp: true */
+/*global require, XMLHttpRequest, ActiveXObject,
+  define, window, process, Packages,
+  java, location, Components, FileUtils */
+
+define('text',['module'], function (module) {
+    'use strict';
+
+    var text, fs, Cc, Ci, xpcIsWindows,
+        progIds = ['Msxml2.XMLHTTP', 'Microsoft.XMLHTTP', 'Msxml2.XMLHTTP.4.0'],
+        xmlRegExp = /^\s*<\?xml(\s)+version=[\'\"](\d)*.(\d)*[\'\"](\s)*\?>/im,
+        bodyRegExp = /<body[^>]*>\s*([\s\S]+)\s*<\/body>/im,
+        hasLocation = typeof location !== 'undefined' && location.href,
+        defaultProtocol = hasLocation && location.protocol && location.protocol.replace(/\:/, ''),
+        defaultHostName = hasLocation && location.hostname,
+        defaultPort = hasLocation && (location.port || undefined),
+        buildMap = {},
+        masterConfig = (module.config && module.config()) || {};
+
+    text = {
+        version: '2.0.14',
+
+        strip: function (content) {
+            //Strips <?xml ...?> declarations so that external SVG and XML
+            //documents can be added to a document without worry. Also, if the string
+            //is an HTML document, only the part inside the body tag is returned.
+            if (content) {
+                content = content.replace(xmlRegExp, "");
+                var matches = content.match(bodyRegExp);
+                if (matches) {
+                    content = matches[1];
+                }
+            } else {
+                content = "";
+            }
+            return content;
+        },
+
+        jsEscape: function (content) {
+            return content.replace(/(['\\])/g, '\\$1')
+                .replace(/[\f]/g, "\\f")
+                .replace(/[\b]/g, "\\b")
+                .replace(/[\n]/g, "\\n")
+                .replace(/[\t]/g, "\\t")
+                .replace(/[\r]/g, "\\r")
+                .replace(/[\u2028]/g, "\\u2028")
+                .replace(/[\u2029]/g, "\\u2029");
+        },
+
+        createXhr: masterConfig.createXhr || function () {
+            //Would love to dump the ActiveX crap in here. Need IE 6 to die first.
+            var xhr, i, progId;
+            if (typeof XMLHttpRequest !== "undefined") {
+                return new XMLHttpRequest();
+            } else if (typeof ActiveXObject !== "undefined") {
+                for (i = 0; i < 3; i += 1) {
+                    progId = progIds[i];
+                    try {
+                        xhr = new ActiveXObject(progId);
+                    } catch (e) {}
+
+                    if (xhr) {
+                        progIds = [progId];  // so faster next time
+                        break;
+                    }
+                }
+            }
+
+            return xhr;
+        },
+
+        /**
+         * Parses a resource name into its component parts. Resource names
+         * look like: module/name.ext!strip, where the !strip part is
+         * optional.
+         * @param {String} name the resource name
+         * @returns {Object} with properties "moduleName", "ext" and "strip"
+         * where strip is a boolean.
+         */
+        parseName: function (name) {
+            var modName, ext, temp,
+                strip = false,
+                index = name.lastIndexOf("."),
+                isRelative = name.indexOf('./') === 0 ||
+                             name.indexOf('../') === 0;
+
+            if (index !== -1 && (!isRelative || index > 1)) {
+                modName = name.substring(0, index);
+                ext = name.substring(index + 1);
+            } else {
+                modName = name;
+            }
+
+            temp = ext || modName;
+            index = temp.indexOf("!");
+            if (index !== -1) {
+                //Pull off the strip arg.
+                strip = temp.substring(index + 1) === "strip";
+                temp = temp.substring(0, index);
+                if (ext) {
+                    ext = temp;
+                } else {
+                    modName = temp;
+                }
+            }
+
+            return {
+                moduleName: modName,
+                ext: ext,
+                strip: strip
+            };
+        },
+
+        xdRegExp: /^((\w+)\:)?\/\/([^\/\\]+)/,
+
+        /**
+         * Is an URL on another domain. Only works for browser use, returns
+         * false in non-browser environments. Only used to know if an
+         * optimized .js version of a text resource should be loaded
+         * instead.
+         * @param {String} url
+         * @returns Boolean
+         */
+        useXhr: function (url, protocol, hostname, port) {
+            var uProtocol, uHostName, uPort,
+                match = text.xdRegExp.exec(url);
+            if (!match) {
+                return true;
+            }
+            uProtocol = match[2];
+            uHostName = match[3];
+
+            uHostName = uHostName.split(':');
+            uPort = uHostName[1];
+            uHostName = uHostName[0];
+
+            return (!uProtocol || uProtocol === protocol) &&
+                   (!uHostName || uHostName.toLowerCase() === hostname.toLowerCase()) &&
+                   ((!uPort && !uHostName) || uPort === port);
+        },
+
+        finishLoad: function (name, strip, content, onLoad) {
+            content = strip ? text.strip(content) : content;
+            if (masterConfig.isBuild) {
+                buildMap[name] = content;
+            }
+            onLoad(content);
+        },
+
+        load: function (name, req, onLoad, config) {
+            //Name has format: some.module.filext!strip
+            //The strip part is optional.
+            //if strip is present, then that means only get the string contents
+            //inside a body tag in an HTML string. For XML/SVG content it means
+            //removing the <?xml ...?> declarations so the content can be inserted
+            //into the current doc without problems.
+
+            // Do not bother with the work if a build and text will
+            // not be inlined.
+            if (config && config.isBuild && !config.inlineText) {
+                onLoad();
+                return;
+            }
+
+            masterConfig.isBuild = config && config.isBuild;
+
+            var parsed = text.parseName(name),
+                nonStripName = parsed.moduleName +
+                    (parsed.ext ? '.' + parsed.ext : ''),
+                url = req.toUrl(nonStripName),
+                useXhr = (masterConfig.useXhr) ||
+                         text.useXhr;
+
+            // Do not load if it is an empty: url
+            if (url.indexOf('empty:') === 0) {
+                onLoad();
+                return;
+            }
+
+            //Load the text. Use XHR if possible and in a browser.
+            if (!hasLocation || useXhr(url, defaultProtocol, defaultHostName, defaultPort)) {
+                text.get(url, function (content) {
+                    text.finishLoad(name, parsed.strip, content, onLoad);
+                }, function (err) {
+                    if (onLoad.error) {
+                        onLoad.error(err);
+                    }
+                });
+            } else {
+                //Need to fetch the resource across domains. Assume
+                //the resource has been optimized into a JS module. Fetch
+                //by the module name + extension, but do not include the
+                //!strip part to avoid file system issues.
+                req([nonStripName], function (content) {
+                    text.finishLoad(parsed.moduleName + '.' + parsed.ext,
+                                    parsed.strip, content, onLoad);
+                });
+            }
+        },
+
+        write: function (pluginName, moduleName, write, config) {
+            if (buildMap.hasOwnProperty(moduleName)) {
+                var content = text.jsEscape(buildMap[moduleName]);
+                write.asModule(pluginName + "!" + moduleName,
+                               "define(function () { return '" +
+                                   content +
+                               "';});\n");
+            }
+        },
+
+        writeFile: function (pluginName, moduleName, req, write, config) {
+            var parsed = text.parseName(moduleName),
+                extPart = parsed.ext ? '.' + parsed.ext : '',
+                nonStripName = parsed.moduleName + extPart,
+                //Use a '.js' file name so that it indicates it is a
+                //script that can be loaded across domains.
+                fileName = req.toUrl(parsed.moduleName + extPart) + '.js';
+
+            //Leverage own load() method to load plugin value, but only
+            //write out values that do not have the strip argument,
+            //to avoid any potential issues with ! in file names.
+            text.load(nonStripName, req, function (value) {
+                //Use own write() method to construct full module value.
+                //But need to create shell that translates writeFile's
+                //write() to the right interface.
+                var textWrite = function (contents) {
+                    return write(fileName, contents);
+                };
+                textWrite.asModule = function (moduleName, contents) {
+                    return write.asModule(moduleName, fileName, contents);
+                };
+
+                text.write(pluginName, nonStripName, textWrite, config);
+            }, config);
+        }
+    };
+
+    if (masterConfig.env === 'node' || (!masterConfig.env &&
+            typeof process !== "undefined" &&
+            process.versions &&
+            !!process.versions.node &&
+            !process.versions['node-webkit'] &&
+            !process.versions['atom-shell'])) {
+        //Using special require.nodeRequire, something added by r.js.
+        fs = require.nodeRequire('fs');
+
+        text.get = function (url, callback, errback) {
+            try {
+                var file = fs.readFileSync(url, 'utf8');
+                //Remove BOM (Byte Mark Order) from utf8 files if it is there.
+                if (file[0] === '\uFEFF') {
+                    file = file.substring(1);
+                }
+                callback(file);
+            } catch (e) {
+                if (errback) {
+                    errback(e);
+                }
+            }
+        };
+    } else if (masterConfig.env === 'xhr' || (!masterConfig.env &&
+            text.createXhr())) {
+        text.get = function (url, callback, errback, headers) {
+            var xhr = text.createXhr(), header;
+            xhr.open('GET', url, true);
+
+            //Allow plugins direct access to xhr headers
+            if (headers) {
+                for (header in headers) {
+                    if (headers.hasOwnProperty(header)) {
+                        xhr.setRequestHeader(header.toLowerCase(), headers[header]);
+                    }
+                }
+            }
+
+            //Allow overrides specified in config
+            if (masterConfig.onXhr) {
+                masterConfig.onXhr(xhr, url);
+            }
+
+            xhr.onreadystatechange = function (evt) {
+                var status, err;
+                //Do not explicitly handle errors, those should be
+                //visible via console output in the browser.
+                if (xhr.readyState === 4) {
+                    status = xhr.status || 0;
+                    if (status > 399 && status < 600) {
+                        //An http 4xx or 5xx error. Signal an error.
+                        err = new Error(url + ' HTTP status: ' + status);
+                        err.xhr = xhr;
+                        if (errback) {
+                            errback(err);
+                        }
+                    } else {
+                        callback(xhr.responseText);
+                    }
+
+                    if (masterConfig.onXhrComplete) {
+                        masterConfig.onXhrComplete(xhr, url);
+                    }
+                }
+            };
+            xhr.send(null);
+        };
+    } else if (masterConfig.env === 'rhino' || (!masterConfig.env &&
+            typeof Packages !== 'undefined' && typeof java !== 'undefined')) {
+        //Why Java, why is this so awkward?
+        text.get = function (url, callback) {
+            var stringBuffer, line,
+                encoding = "utf-8",
+                file = new java.io.File(url),
+                lineSeparator = java.lang.System.getProperty("line.separator"),
+                input = new java.io.BufferedReader(new java.io.InputStreamReader(new java.io.FileInputStream(file), encoding)),
+                content = '';
+            try {
+                stringBuffer = new java.lang.StringBuffer();
+                line = input.readLine();
+
+                // Byte Order Mark (BOM) - The Unicode Standard, version 3.0, page 324
+                // http://www.unicode.org/faq/utf_bom.html
+
+                // Note that when we use utf-8, the BOM should appear as "EF BB BF", but it doesn't due to this bug in the JDK:
+                // http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4508058
+                if (line && line.length() && line.charAt(0) === 0xfeff) {
+                    // Eat the BOM, since we've already found the encoding on this file,
+                    // and we plan to concatenating this buffer with others; the BOM should
+                    // only appear at the top of a file.
+                    line = line.substring(1);
+                }
+
+                if (line !== null) {
+                    stringBuffer.append(line);
+                }
+
+                while ((line = input.readLine()) !== null) {
+                    stringBuffer.append(lineSeparator);
+                    stringBuffer.append(line);
+                }
+                //Make sure we return a JavaScript string and not a Java string.
+                content = String(stringBuffer.toString()); //String
+            } finally {
+                input.close();
+            }
+            callback(content);
+        };
+    } else if (masterConfig.env === 'xpconnect' || (!masterConfig.env &&
+            typeof Components !== 'undefined' && Components.classes &&
+            Components.interfaces)) {
+        //Avert your gaze!
+        Cc = Components.classes;
+        Ci = Components.interfaces;
+        Components.utils['import']('resource://gre/modules/FileUtils.jsm');
+        xpcIsWindows = ('@mozilla.org/windows-registry-key;1' in Cc);
+
+        text.get = function (url, callback) {
+            var inStream, convertStream, fileObj,
+                readData = {};
+
+            if (xpcIsWindows) {
+                url = url.replace(/\//g, '\\');
+            }
+
+            fileObj = new FileUtils.File(url);
+
+            //XPCOM, you so crazy
+            try {
+                inStream = Cc['@mozilla.org/network/file-input-stream;1']
+                           .createInstance(Ci.nsIFileInputStream);
+                inStream.init(fileObj, 1, 0, false);
+
+                convertStream = Cc['@mozilla.org/intl/converter-input-stream;1']
+                                .createInstance(Ci.nsIConverterInputStream);
+                convertStream.init(inStream, "utf-8", inStream.available(),
+                Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
+
+                convertStream.readString(inStream.available(), readData);
+                convertStream.close();
+                inStream.close();
+                callback(readData.value);
+            } catch (e) {
+                throw new Error((fileObj && fileObj.path || '') + ': ' + e);
+            }
+        };
+    }
+    return text;
+});
+
+
+define('text!scripts/components/product-configurator/views/filter-control-view.ejs',[],function () { return '<label class="control-label col-sm-3"><%= displayName %></label>\n<div class="col-sm-9">\n\n<%\n\tif( dataProvider.attr( \'length\' ) > 1 ){\n%>\n\t<select class="form-control">\n\t\t<% \n\n\t\tlist( dataProvider, function( item, index ){ \n\t\t\tvar name = item.attr( labelField ),\n\t\t\t\tvalue = item.attr( fieldName );\n\t\t%>\n\t\t\n\t\t<option value="<%= value %>"<% if( value === defaultValue ){ %> selected="selected" <%}%>><%== name %></option>\n\t\t\n\t\t<% }); %>\n\t\t\n\t</select>\n<%\n\t}\n\telse {\n%>\n\t<p class="form-control-static"><%== dataProvider.attr( \'0.\' + labelField ) %></p>\n<%\n\t}\n%>\n</div>';});
+
+define('scripts/components/product-configurator/filter-control',[
+	'jquery',
+	'can',
+	'text!./views/filter-control-view.ejs',
+	'scripts/components/common/util/lang',
+	'can-proxy'
+], function( $, can, viewTemplate ){
+
+	var FilterControl = can.Control({
+
+	},
+	{
+		init: function() {
+			this.name = this.options.name;
+		},
+
+		// called from factory after mixins applied
+		initialize: function(){
+			this.createViewModel();
+			this.setDataProvider();
+			this.renderView();
+		},
+
+		createViewModel: function(){
+			this.viewModel = new can.Observe({
+				displayName: this.options.displayName,
+				fieldName: this.options.fieldName,
+				labelField: this.options.labelField,
+				defaultValue: '',
+				dataProvider: new can.Observe.List([])
+			});
+		},
+
+		setDataProvider: function(){
+			var model = this.options.model,
+				fieldName = this.options.fieldName,
+				sortFunc = this.options.sortFunction,
+				dataProvider = this.viewModel.attr( 'dataProvider' ),
+				dp = model.getSkusWithDistinctFieldValues( fieldName );
+
+			if( sortFunc ){
+				dp.sort( sortFunc );
+			}
+
+			this.setDefaultValue( dp );
+			dataProvider.replace( dp );
+			this.setVisible();
+		},
+
+		setDefaultValue: function( dataProvider ){
+			var fieldName = this.options.fieldName,
+				defaultValues = this.options.defaultValue,
+				len, value,
+				checkFunc = function( item ){
+					return item[ fieldName ] === value;
+				};
+
+			if( $.isArray( defaultValues )){
+				len = defaultValues.length;
+
+				for( var i=0; i<len; i++ ){
+					value = defaultValues[ i ];
+					if( $.some( dataProvider, checkFunc )){	
+						break;
+					}
+				}
+			}
+			else {
+				value = defaultValues;
+			}
+
+			this.viewModel.attr( 'defaultValue', value );
+		},
+
+		setVisible: function(){
+			var dataProvider = this.viewModel.attr( 'dataProvider' ),
+				len = dataProvider.length;
+
+			switch( len ){
+				case 0:
+					this.element.hide();
+					break;
+				case 1:
+					this.showSingleValueState();
+					break;
+				default:
+					this.element.show();
+			}
+		},
+
+		showSingleValueState: function(){
+
+			var fieldName = this.options.fieldName,
+				value = this.viewModel.attr( 'dataProvider.0.' + fieldName );
+
+			if( this.options.hideSingleValue || !this.isValidValue( value )){
+				this.element.hide();
+			}
+			else {
+				this.element.show();
+			}
+		},
+
+		isValidValue: function( value ){
+			return ( value !== 'N/A' && value !== 'NONE' && value !== '' && value !== 'null' && value !== null );
+		},
+
+		renderView: function(){
+			can.view.ejs( 'viewEJS', viewTemplate );
+			this.element.html( can.view( 'viewEJS',  this.viewModel ));
+		},
+
+		applyFilter : function(){
+			this.options.configurator.filterProductData( this );
+		},
+
+		getValue: function(){
+			return this.element.find( 'select' ).val() || this.viewModel.dataProvider.attr( '0.' + this.options.fieldName );
+		},
+
+		getFieldName: function(){
+			return this.options.fieldName;
+		},
+
+		'select change': function(){
+			this.viewModel.attr( 'defaultValue', this.getValue() );
+			this.applyFilter();
+		}
+
+	});
+
+	return FilterControl;
+
+});
+define('scripts/components/product-configurator/filter-control-factory',[
+	'jquery',
+	'can',
+	'./filter-control'
+], function( $, can, FilterControl ){
+	
+	var FilterFactory = can.Construct({
+
+		DISTRIBUTION : 'DISTRIBUTION',
+		UPGRADE : 'UPGRADE',
+		VERSION : 'VERSION',
+		SERVICE_COMMITMENT : 'SERVICE_COMMITMENT',
+		PLATFORM : 'PLATFORM',
+		LANGUAGE : 'LANGUAGE',
+		FULFILLMENT : 'FULFILLMENT',
+		TERM_TYPE : 'TERM_TYPE',
+		QUANTITY : 'QUANTITY',
+
+		controllerProps : {
+
+			DISTRIBUTION:{
+				fieldName : 'distributionMethod',
+				labelField : 'distributionMethodLabel',
+				displayName : 'I want to buy:',
+				sortFunction : function(a,b){ return b.price - a.price; },
+				hideSingleValue : false,
+				defaultValue : 'FULL',
+				name: 'DISTRIBUTION'
+			},
+
+			UPGRADE: {
+				fieldName : 'upgradeGroup',
+				labelField : 'name',
+				valueField : 'productKey',
+				displayName : 'Upgrade from:',
+				truncate : true,
+				hideSingleValue : false,
+				defaultValue : null,
+				name : 'UPGRADE'
+			},
+
+			VERSION	: {
+				fieldName : 'versionString',
+				labelField : 'versionString',
+				displayName : 'Version:',
+				hideSingleValue : true,
+				defaultValue : null,
+				name : 'VERSION'
+			},
+
+			SERVICE_COMMITMENT : {
+				fieldName : 'serviceCommitment',
+				labelField : 'serviceCommitmentLabel',
+				displayName : 'Plan:',
+				hideSingleValue : false,
+				defaultValue : 'YEAR',
+				name : 'SERVICE_COMMITMENT'
+			},
+
+			PLATFORM: {
+				fieldName : 'platformCode',
+				labelField : 'platformLabel',
+				displayName : 'Platform:',
+				hideSingleValue : false,
+				defaultValue : 'Windows',
+				name : 'PLATFORM'
+			},
+
+			LANGUAGE: {
+				fieldName : 'languageCode',
+				labelField : 'language',
+				displayName : 'Language:',
+				hideSingleValue : false,
+				defaultValue : 'EN',
+				name : 'LANGUAGE'
+			},
+
+			FULFILLMENT: {
+				fieldName : 'fulfillmentMethodType',
+				labelField : 'fulfillmentMethodTypeLabel',
+				displayName : 'Delivery:',
+				sortFunction : function( a, b ){
+					var nameA = a.fulfillmentMethodTypeLabel.toLowerCase(), 
+						nameB = b.fulfillmentMethodTypeLabel.toLowerCase();
+
+					if( nameA < nameB ){
+						return -1;
+					}
+						
+					if( nameA > nameB ){
+						return 1;
+					}
+						
+					return 0;
+				},
+				hideSingleValue : true,
+				defaultValue : 'SOFTGOOD',
+				name : 'FULFILLMENT'
+			},
+
+			TERM_TYPE:{
+				fieldName : 'termType',
+				labelField : 'termTypeLabel',
+				displayName : 'Plan:',
+				hideSingleValue : true,
+				defaultValue : 'ANNUAL',
+				name : 'TERM_TYPE'
+			},
+
+			QUANTITY: {
+				fieldName : 'quantity',
+				labelField  : 'quantity',
+				displayName : 'Quantity:',
+				hideSingleValue : false,
+				defaultValue : 1,
+				name : 'QUANTITY'
+			}
+		},
+
+		controlMixins: {
+			UPGRADE : {
+				setDataProvider : function(){
+					var model = this.options.model,
+						fieldName = this.options.fieldName,
+						dataProvider = this.viewModel.attr( 'dataProvider' ),
+						upgradeGroups = model.getSkusWithDistinctFieldValues( fieldName ),
+						dp = upgradeGroups.length > 1 ? model.attr('qualifyingProducts') : [];
+
+					dataProvider.replace( dp );
+					this.setVisible();
+				}
+			},
+
+			QUANTITY: {
+				setDataProvider : function(){
+					var model = this.options.model,
+						dataProvider = this.viewModel.attr( 'dataProvider' ),
+						maxQuantities = model.getSkusWithDistinctFieldValues( 'maxCartQty' ),
+						maxQty = maxQuantities.length === 1 ? maxQuantities[0]['maxCartQty'] : 9,
+						dp = [];
+
+					for( var i=1; i <= maxQty; i++ ){
+						dp.push( { quantity: String( i )} );
+					}
+
+					dataProvider.replace( dp );
+					this.setVisible();
+				},
+
+				applyFilter : function(){
+					this.options.configurator.skusFiltered();
+				},
+			}
+		}
+
+	},
+	{
+		init: function( configurator ){
+			this.configurator = configurator;
+		},
+
+		getFilterControl: function( type, options ){
+			var props = this.getFilterControlOptions( type, options ),
+				containerClass = 'form-group configurator-control ' + type.toLowerCase(),
+				$elem = $('<div class="' + containerClass + '">'),
+				control = new FilterControl( $elem, props );
+
+			this.addControlMixins( control );
+			control.initialize();
+
+			return control;
+		},
+
+		getFilterControlOptions: function( type, options ){
+			var opts = this.constructor.controllerProps[ type ],
+				passedInOptions = options[ opts.fieldName ] || {};
+
+			$.extend( opts, passedInOptions );
+
+			opts.model = this.configurator.model;
+			opts.configurator = this.configurator;
+			
+			return opts;
+		},
+
+		addControlMixins: function( control ){
+			var type = control.name,
+				methods = this.constructor.controlMixins[ type ];
+
+			$.extend( control, methods );
+		}
+	});
+
+	return FilterFactory;
+
+});
+/*!
+* CanJS - 1.1.5 (2013-03-27)
+* http://canjs.us/
+* Copyright (c) 2013 Bitovi
+* Licensed MIT
+*/
+define('lib/canjs/amd/can/control/plugin',['jquery', 'can/util/library', 'can/control'], function ($, can) {
+    //used to determine if a control instance is one of controllers
+    //controllers can be strings or classes
+    var i, isAControllerOf = function (instance, controllers) {
+        for (i = 0; i < controllers.length; i++) {
+            if (typeof controllers[i] == 'string' ? instance.constructor._shortName == controllers[i] : instance instanceof controllers[i]) {
+                return true;
+            }
+        }
+        return false;
+    },
+        makeArray = can.makeArray,
+        old = can.Control.setup;
+
+    can.Control.setup = function () {
+        // if you didn't provide a name, or are control, don't do anything
+        if (this !== can.Control) {
+
+
+            var pluginName = this.pluginName || this._fullName;
+
+            // create jQuery plugin
+            if (pluginName !== 'can_control') {
+                this.plugin(pluginName);
+            }
+
+            old.apply(this, arguments);
+        }
+    };
+
+    $.fn.extend({
+
+
+        controls: function () {
+            var controllerNames = makeArray(arguments),
+                instances = [],
+                controls, c, cname;
+            //check if arguments
+            this.each(function () {
+
+                controls = can.$(this).data("controls");
+                if (!controls) {
+                    return;
+                }
+                for (var i = 0; i < controls.length; i++) {
+                    c = controls[i];
+                    if (!controllerNames.length || isAControllerOf(c, controllerNames)) {
+                        instances.push(c);
+                    }
+                }
+            });
+            return instances;
+        },
+
+
+        control: function (control) {
+            return this.controls.apply(this, arguments)[0];
+        }
+    });
+
+    can.Control.plugin = function (pluginname) {
+        var control = this;
+
+        if (!$.fn[pluginname]) {
+            $.fn[pluginname] = function (options) {
+
+                var args = makeArray(arguments),
+                    //if the arg is a method on this control
+                    isMethod = typeof options == "string" && $.isFunction(control.prototype[options]),
+                    meth = args[0],
+                    returns;
+                this.each(function () {
+                    //check if created
+                    var plugin = can.$(this).control(control);
+
+                    if (plugin) {
+                        if (isMethod) {
+                            // call a method on the control with the remaining args
+                            returns = plugin[meth].apply(plugin, args.slice(1));
+                        }
+                        else {
+                            // call the plugin's update method
+                            plugin.update.apply(plugin, args);
+                        }
+                    }
+                    else {
+                        //create a new control instance
+                        control.newInstance.apply(control, [this].concat(args));
+                    }
+                });
+                return returns !== undefined ? returns : this;
+            };
+        }
+    }
+
+    can.Control.prototype.update = function (options) {
+        can.extend(this.options, options);
+        this.on();
+    };
+
+    return can;
+});
+define('product-configurator',[
+	'jquery',
+	'can',
+	'scripts/components/product-configurator/models/product-configuration-model',
+	'scripts/components/product-configurator/filter-control-factory',
+	'lib/canjs/amd/can/control/plugin',
+	'can-proxy'
+], function( $, can, ProductConfigurationModel, FilterControlFactory ){
+
+	var ProductConfigurator = can.Control({
+
+		pluginName: 'anyware_product_configurator',
+
+		defaults : {
+			countryCode: 'US',
+			languageCode: 'en',
+			marketSegment: 'COM',
+			landscape: 'prod',
+			containerClass: 'form-horizontal',
+			filterControlOptions: {
+				distributionMethod: {
+					displayName : 'I want to buy:',
+					defaultValue: [ 'SUB_NEW', 'FULL' ],
+					hideSingleValue: true
+				},
+				upgradeGroup: {
+					displayName : 'Upgrade from:',
+					defaultValue: null,
+					hideSingleValue: true,
+				},
+				versionString: {
+					displayName : 'Version:',
+					defaultValue: null,
+					hideSingleValue: true,
+				},
+				serviceCommitment: {
+					displayName : 'Plan:',
+					defaultValue: 'YEAR',
+					hideSingleValue: true
+				},
+				platformCode: {
+					displayName : 'Platform:',
+					defaultValue: [ 'Mac/Win', 'Windows' ],
+					hideSingleValue: true,
+				},
+				languageCode: {
+					displayName : 'Language:',
+					defaultValue: [ 'MULT', 'EN' ],
+					hideSingleValue: true
+				},
+				fulfillmentMethod: {
+					displayName : 'Delivery:',
+					defaultValue: 'SOFTGOOD',
+					hideSingleValue: true
+				},
+				termType: {
+					displayName : 'Plan:',
+					defaultValue: 'ANNUAL',
+					hideSingleValue: true
+				},
+				quantity: {
+					displayName : 'Quantity:',
+					defaultValue: 1,
+					hideSingleValue: true
+				}
+			}
+		},
+
+		MISSING_ARGUMENTS_ERROR : 'Configurator: You must provide either a productModel or productKey plugin options'
+	},
+	{
+		init: function(){
+			var opts = this.options;
+
+			if( !( opts.productKey || opts.model )){
+				throw new Error( this.constructor.MISSING_ARGUMENTS_ERROR );
+			}
+
+			this.element.addClass( this.options.containerClass );
+			this.currentFilterIndex = 0;
+
+			if( opts.model ){
+				this.dataLoaded( opts.model );
+			}
+			else {
+				this.loadProductData();
+			}
+		},
+
+		loadProductData: function(){
+			var self = this;
+
+			ProductConfigurationModel.findAll( this.options )
+				.then( this.proxy( 'dataLoaded' ))
+				.fail( this.proxy( 'dataLoadError' ));
+		},
+
+		dataLoaded: function( model ){
+			this.model = model;
+			this.setupListeners();
+			this.setupFilterControls();
+			this.beginConfigutation();
+		},
+
+		dataLoadError: function( error ){
+			this.element.trigger( 'errorEvent', error );
+		},
+
+		beginConfigutation: function(){
+			var filter = this.filterControls[ 0 ];
+			this.filterProductData( filter );
+		},
+
+		filterProductData: function( filter ){
+
+			if( this.model.filterAppliedPreviously( filter.getFieldName() )){
+				this.setCurrentFilterIndex( filter.name );
+			}
+
+			if( this.isCurrentFilter( filter.name )){
+				this.applyFilter( filter );
+				this.resetRemainingFilters();
+			}
+		},
+
+		applyFilter: function( filter ){
+			this.model.filterProductData( filter.getFieldName(), filter.getValue() );
+			this.currentFilterIndex++;
+		},
+
+		resetRemainingFilters: function(){
+			var filters = this.filterControls,
+				len = filters.length,
+				currentIndex = this.currentFilterIndex,
+				currentFilter = filters[ currentIndex ],
+				filter;
+
+			for( var i=currentIndex; i < len; i++ ){
+				filter = filters[ i ];
+				filter.setDataProvider();
+			}
+
+			if( currentFilter ){
+				currentFilter.applyFilter();
+			}
+		},
+
+		getSelectedSku: function(){
+			var skus = this.model.attr( 'filteredSkus' ),
+				sku;
+
+			if( skus.length === 1 ){
+				sku = skus.attr( '0' );
+				sku.attr( 'quantity', this.getQuantity() );
+			}
+
+			return sku;
+		},
+
+		getQuantity: function(){
+			return this.filterControls[ this.getFilterIndex( 'QUANTITY' )].getValue();
+		},
+
+		//------- FILTER INDEX METHOD --------------------------------------------
+
+		isCurrentFilter: function( filterName ){
+			return this.currentFilterIndex === this.getFilterIndex( filterName );
+		},
+
+		setCurrentFilterIndex: function( filterName ){
+			this.currentFilterIndex = this.getFilterIndex( filterName );
+		},
+
+		getFilterIndex: function( filterName ){
+			var filters = this.filterControls,
+				len = filters.length;
+
+			for( var i=0; i < len; i++ ){
+				if( filters[i].name === filterName ){
+					return i;
+				}
+			}
+
+			return -1;
+		},
+
+		//------- EVENT HANDLERS --------------------------------------------------
+
+		setupListeners: function(){
+			this.model.attr( 'filteredSkus' ).bind( 'change', this.proxy( 'skusFiltered' ));
+		},
+
+		skusFiltered: function(){
+			var numSkus = this.model.attr( 'filteredSkus.length' ),
+				selectedSku;
+
+			if( numSkus === 1 ){
+				selectedSku =  this.getSelectedSku();
+			}
+
+			this.element.trigger( 'modelChanged', { 
+				numberOfSkus: numSkus, 
+				model: this.model,
+				selectedSku: selectedSku 
+			});
+		},
+
+
+		// ------- SETUP METHODS ---------------------------------------------------
+
+		setupFilterControls: function(){
+			var list = this.getFilterControlList(),
+				factory = new FilterControlFactory( this ),
+				cons = this.filterControls = [],
+				filterOptions = this.options.filterControlOptions,
+				filter;
+
+			for( var i=0; i < list.length; i++ ){
+				filter = factory.getFilterControl( list[i], filterOptions );
+				this.element.append( filter.element );
+				cons.push( filter );
+			}
+		},
+
+		getFilterControlList : function(){
+			var useUpgrade = this.dataIncludesQualifyingProducts(),
+				configType = this.getConfigurationType(),
+				f = FilterControlFactory,
+				list;
+
+			switch (configType) {
+				case 'STANDARD':
+					list = useUpgrade ?
+							[f.DISTRIBUTION,f.UPGRADE,f.SERVICE_COMMITMENT,f.PLATFORM,f.LANGUAGE,f.FULFILLMENT,f.QUANTITY] :
+							[f.DISTRIBUTION,f.VERSION,f.SERVICE_COMMITMENT,f.PLATFORM,f.LANGUAGE,f.FULFILLMENT,f.QUANTITY];
+					break;
+				case 'SUBSCRIPTION':
+					list = [f.TERM_TYPE,f.QUANTITY];
+					break;
+			}
+
+			return list;
+		},
+
+		dataIncludesQualifyingProducts: function(){
+			var qProducts = this.model.attr( 'qualifyingProducts' );
+			return (qProducts && qProducts.length > 0 );
+		},
+
+		getConfigurationType: function(){
+			var configType = this.model.attr('configurationType');
+
+			return configType === 'SSP_SUBSCRIPTION' ? 'SUBSCRIPTION' : 'STANDARD';
+		}
+
+	});
+
+	return ProductConfigurator;
+});
 /*******************************************************************************
  * OpenAjax-mashup.js
  *
  * Reference implementation of the OpenAjax Hub, as specified by OpenAjax Alliance.
- * Specification is under development at:
+ * Specification is under development at: 
  *
  *   http://www.openajax.org/member/wiki/OpenAjax_Hub_Specification
  *
  * Copyright 2006-2009 OpenAjax Alliance
  *
- * Licensed under the Apache License, Version 2.0 (the "License"); you may not
- * use this file except in compliance with the License. You may obtain a copy
- * of the License at http://www.apache.org/licenses/LICENSE-2.0 . Unless
- * required by applicable law or agreed to in writing, software distributed
- * under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
- * CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not 
+ * use this file except in compliance with the License. You may obtain a copy 
+ * of the License at http://www.apache.org/licenses/LICENSE-2.0 . Unless 
+ * required by applicable law or agreed to in writing, software distributed 
+ * under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR 
+ * CONDITIONS OF ANY KIND, either express or implied. See the License for the 
  * specific language governing permissions and limitations under the License.
  *
  ******************************************************************************/
@@ -4360,17 +6432,17 @@ OpenAjax.hub = function() {
         specVersion: "2.0",
         implExtraData: {},
         libraries: libs,
-
+    
         registerLibrary: function(prefix, nsURL, version, extra) {
             libs[prefix] = {
                 prefix: prefix,
                 namespaceURI: nsURL,
                 version: version,
-                extraData: extra
+                extraData: extra 
             };
             this.publish(ooh+"registerLibrary", libs[prefix]);
         },
-
+        
         unregisterLibrary: function(prefix) {
             this.publish(ooh+"unregisterLibrary", libs[prefix]);
             delete libs[prefix];
@@ -4380,7 +6452,7 @@ OpenAjax.hub = function() {
 
 /**
  * Error
- *
+ * 
  * Standard Error names used when the standard functions need to throw Errors.
  */
 OpenAjax.hub.Error = {
@@ -4405,9 +6477,9 @@ OpenAjax.hub.Error = {
 
 /**
  * SecurityAlert
- *
+ * 
  * Standard codes used when attempted security violations are detected. Unlike
- * Errors, these codes are not thrown as exceptions but rather passed into the
+ * Errors, these codes are not thrown as exceptions but rather passed into the 
  * SecurityAlertHandler function registered with the Hub instance.
  */
 OpenAjax.hub.SecurityAlert = {
@@ -4437,7 +6509,7 @@ OpenAjax.hub._debugger = function() {
 
 /**
  * Hub interface
- *
+ * 
  * Hub is implemented on the manager side by ManagedHub and on the client side
  * by ClientHub.
  */
@@ -4448,26 +6520,26 @@ OpenAjax.hub._debugger = function() {
  *
  * @param {String} topic
  *     A valid topic string. MAY include wildcards.
- * @param {Function} onData
- *     Callback function that is invoked whenever an event is
+ * @param {Function} onData   
+ *     Callback function that is invoked whenever an event is 
  *     published on the topic
  * @param {Object} [scope]
  *     When onData callback or onComplete callback is invoked,
  *     the JavaScript "this" keyword refers to this scope object.
  *     If no scope is provided, default is window.
  * @param {Function} [onComplete]
- *     Invoked to tell the client application whether the
- *     subscribe operation succeeded or failed.
+ *     Invoked to tell the client application whether the 
+ *     subscribe operation succeeded or failed. 
  * @param {*} [subscriberData]
  *     Client application provides this data, which is handed
  *     back to the client application in the subscriberData
  *     parameter of the onData callback function.
- *
+ * 
  * @returns subscriptionID
- *     Identifier representing the subscription. This identifier is an
+ *     Identifier representing the subscription. This identifier is an 
  *     arbitrary ID string that is unique within this Hub instance
  * @type {String}
- *
+ * 
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
  * @throws {OpenAjax.hub.Error.BadParameters} if the topic is invalid (e.g. contains an empty token)
  */
@@ -4482,9 +6554,9 @@ OpenAjax.hub._debugger = function() {
  *     Valid publishable data. To be portable across different
  *     Container implementations, this value SHOULD be serializable
  *     as JSON.
- *
+ *     
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
- * @throws {OpenAjax.hub.Error.BadParameters} if the topic cannot be published (e.g. contains
+ * @throws {OpenAjax.hub.Error.BadParameters} if the topic cannot be published (e.g. contains 
  *     wildcards or empty tokens) or if the data cannot be published (e.g. cannot be serialized as JSON)
  */
 //OpenAjax.hub.Hub.prototype.publish = function( topic, data ) {}
@@ -4500,7 +6572,7 @@ OpenAjax.hub._debugger = function() {
  *     When onComplete callback function is invoked, the JavaScript "this"
  *     keyword refers to this scope object.
  *     If no scope is provided, default is window.
- *
+ *     
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
  * @throws {OpenAjax.hub.Error.NoSubscription} if no such subscription is found
  */
@@ -4509,9 +6581,9 @@ OpenAjax.hub._debugger = function() {
 /**
  * Return true if this Hub instance is in the Connected state.
  * Else returns false.
- *
+ * 
  * This function can be called even if the Hub is not in a CONNECTED state.
- *
+ * 
  * @returns Boolean
  * @type {Boolean}
  */
@@ -4520,24 +6592,24 @@ OpenAjax.hub._debugger = function() {
 /**
  * Returns the scope associated with this Hub instance and which will be used
  * with callback functions.
- *
+ * 
  * This function can be called even if the Hub is not in a CONNECTED state.
- *
+ * 
  * @returns scope object
  * @type {Object}
  */
 //OpenAjax.hub.Hub.prototype.getScope = function() {}
 
 /**
- * Returns the subscriberData parameter that was provided when
+ * Returns the subscriberData parameter that was provided when 
  * Hub.subscribe was called.
  *
  * @param {String} subscriptionID
  *     The subscriberID of a subscription
- *
+ * 
  * @returns subscriberData
  * @type {*}
- *
+ * 
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
  * @throws {OpenAjax.hub.Error.NoSubscription} if there is no such subscription
  */
@@ -4549,10 +6621,10 @@ OpenAjax.hub._debugger = function() {
  *
  * @param {String} subscriberID
  *     The subscriberID of a subscription
- *
+ * 
  * @returns scope
  * @type {*}
- *
+ * 
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
  * @throws {OpenAjax.hub.Error.NoSubscription} if there is no such subscription
  */
@@ -4570,26 +6642,26 @@ OpenAjax.hub._debugger = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * HubClient interface
- *
+ * HubClient interface 
+ * 
  * Extends Hub interface.
- *
- * A HubClient implementation is typically specific to a particular
+ * 
+ * A HubClient implementation is typically specific to a particular 
  * implementation of Container.
  */
 
 /**
- * Create a new HubClient. All HubClient constructors MUST have this
+ * Create a new HubClient. All HubClient constructors MUST have this 
  * signature.
  * @constructor
- *
- * @param {Object} params
+ * 
+ * @param {Object} params 
  *    Parameters used to instantiate the HubClient.
  *    Once the constructor is called, the params object belongs to the
  *    HubClient. The caller MUST not modify it.
  *    Implementations of HubClient may specify additional properties
- *    for the params object, besides those identified below.
- *
+ *    for the params object, besides those identified below. 
+ * 
  * @param {Function} params.HubClient.onSecurityAlert
  *     Called when an attempted security breach is thwarted
  * @param {Object} [params.HubClient.scope]
@@ -4598,10 +6670,10 @@ OpenAjax.hub._debugger = function() {
  *     If not provided, the default is window.
  * @param {Function} [params.HubClient.log]
  *     Optional logger function. Would be used to log to console.log or
- *     equivalent.
- *
+ *     equivalent. 
+ *     
  * @throws {OpenAjax.hub.Error.BadParameters} if any of the required
- *     parameters is missing, or if a parameter value is invalid in
+ *     parameters is missing, or if a parameter value is invalid in 
  *     some way.
  */
 //OpenAjax.hub.HubClient = function( params ) {}
@@ -4609,27 +6681,27 @@ OpenAjax.hub._debugger = function() {
 /**
  * Requests a connection to the ManagedHub, via the Container
  * associated with this HubClient.
- *
- * If the Container accepts the connection request, the HubClient's
- * state is set to CONNECTED and the HubClient invokes the
+ * 
+ * If the Container accepts the connection request, the HubClient's 
+ * state is set to CONNECTED and the HubClient invokes the 
  * onComplete callback function.
- *
+ * 
  * If the Container refuses the connection request, the HubClient
- * invokes the onComplete callback function with an error code.
- * The error code might, for example, indicate that the Container
+ * invokes the onComplete callback function with an error code. 
+ * The error code might, for example, indicate that the Container 
  * is being destroyed.
- *
- * In most implementations, this function operates asynchronously,
+ * 
+ * In most implementations, this function operates asynchronously, 
  * so the onComplete callback function is the only reliable way to
  * determine when this function completes and whether it has succeeded
  * or failed.
- *
+ * 
  * A client application may call HubClient.disconnect and then call
  * HubClient.connect.
- *
+ * 
  * @param {Function} [onComplete]
  *     Callback function to call when this operation completes.
- * @param {Object} [scope]
+ * @param {Object} [scope]  
  *     When the onComplete function is invoked, the JavaScript "this"
  *     keyword refers to this scope object.
  *     If no scope is provided, default is window.
@@ -4640,29 +6712,29 @@ OpenAjax.hub._debugger = function() {
 
 /**
  * Disconnect from the ManagedHub
- *
+ * 
  * Disconnect immediately:
- *
+ * 
  * 1. Sets the HubClient's state to DISCONNECTED.
- * 2. Causes the HubClient to send a Disconnect request to the
- *      associated Container.
+ * 2. Causes the HubClient to send a Disconnect request to the 
+ *      associated Container. 
  * 3. Ensures that the client application will receive no more
- *      onData or onComplete callbacks associated with this
+ *      onData or onComplete callbacks associated with this 
  *      connection, except for the disconnect function's own
  *      onComplete callback.
  * 4. Automatically destroys all of the HubClient's subscriptions.
  *
- * In most implementations, this function operates asynchronously,
+ * In most implementations, this function operates asynchronously, 
  * so the onComplete callback function is the only reliable way to
  * determine when this function completes and whether it has succeeded
  * or failed.
- *
- * A client application is allowed to call HubClient.disconnect and
+ * 
+ * A client application is allowed to call HubClient.disconnect and 
  * then call HubClient.connect.
- *
+ *  
  * @param {Function} [onComplete]
  *     Callback function to call when this operation completes.
- * @param {Object} [scope]
+ * @param {Object} [scope]  
  *     When the onComplete function is invoked, the JavaScript "this"
  *     keyword refers to the scope object.
  *     If no scope is provided, default is window.
@@ -4676,14 +6748,14 @@ OpenAjax.hub._debugger = function() {
  * If DISCONNECTED: Returns null
  * If CONNECTED: Returns the origin associated with the window containing the
  * Container associated with this HubClient instance. The origin has the format
- *
+ *  
  * [protocol]://[host]
- *
+ * 
  * where:
- *
+ * 
  * [protocol] is "http" or "https"
  * [host] is the hostname of the partner page.
- *
+ * 
  * @returns Partner's origin
  * @type {String}
  */
@@ -4702,27 +6774,27 @@ OpenAjax.hub._debugger = function() {
 /**
  * OpenAjax.hub.ManagedHub
  *
- * Managed hub API for the manager application and for Containers.
- *
+ * Managed hub API for the manager application and for Containers. 
+ * 
  * Implements OpenAjax.hub.Hub.
  */
 
 /**
  * Create a new ManagedHub instance
  * @constructor
- *
+ *     
  * This constructor automatically sets the ManagedHub's state to
  * CONNECTED.
- *
+ * 
  * @param {Object} params
  *     Parameters used to instantiate the ManagedHub.
  *     Once the constructor is called, the params object belongs exclusively to
  *     the ManagedHub. The caller MUST not modify it.
- *
+ *     
  * The params object may contain the following properties:
- *
+ * 
  * @param {Function} params.onPublish
- *     Callback function that is invoked whenever a
+ *     Callback function that is invoked whenever a 
  *     data value published by a Container is about
  *     to be delivered to some (possibly the same) Container.
  *     This callback function implements a security policy;
@@ -4732,21 +6804,21 @@ OpenAjax.hub._debugger = function() {
  *     Called whenever a Container tries to subscribe
  *     on behalf of its client.
  *     This callback function implements a security policy;
- *     it returns true if the subscription is permitted
+ *     it returns true if the subscription is permitted 
  *     and false if permission is denied.
  * @param {Function} [params.onUnsubscribe]
- *     Called whenever a Container unsubscribes on behalf of its client.
- *     Unlike the other callbacks, onUnsubscribe is intended only for
+ *     Called whenever a Container unsubscribes on behalf of its client. 
+ *     Unlike the other callbacks, onUnsubscribe is intended only for 
  *     informative purposes, and is not used to implement a security
  *     policy.
  * @param {Object} [params.scope]
  *     Whenever one of the ManagedHub's callback functions is called,
- *     references to the JavaScript "this" keyword in the callback
+ *     references to the JavaScript "this" keyword in the callback 
  *     function refer to this scope object
  *     If no scope is provided, default is window.
  * @param {Function} [params.log]  Optional logger function. Would
  *     be used to log to console.log or equivalent.
- *
+ * 
  * @throws {OpenAjax.hub.Error.BadParameters} if any of the required
  *     parameters are missing
  */
@@ -4754,7 +6826,7 @@ OpenAjax.hub.ManagedHub = function( params )
 {
     if ( ! params || ! params.onPublish || ! params.onSubscribe )
         throw new Error( OpenAjax.hub.Error.BadParameters );
-
+    
     this._p = params;
     this._onUnsubscribe = params.onUnsubscribe ? params.onUnsubscribe : null;
     this._scope = params.scope || window;
@@ -4779,50 +6851,50 @@ OpenAjax.hub.ManagedHub = function( params )
     this._seq = 0;
 
     this._active = true;
-
+    
     this._isPublishing = false;
     this._pubQ = [];
 }
 
 /**
- * Subscribe to a topic on behalf of a Container. Called only by
+ * Subscribe to a topic on behalf of a Container. Called only by 
  * Container implementations, NOT by manager applications.
- *
+ * 
  * This function:
  * 1. Checks with the ManagedHub's onSubscribe security policy
- *    to determine whether this Container is allowed to subscribe
+ *    to determine whether this Container is allowed to subscribe 
  *    to this topic.
  * 2. If the subscribe operation is permitted, subscribes to the
  *    topic and returns the ManagedHub's subscription ID for this
- *    subscription.
+ *    subscription. 
  * 3. If the subscribe operation is not permitted, throws
  *    OpenAjax.hub.Error.NotAllowed.
- *
- * When data is published on the topic, the ManagedHub's
+ * 
+ * When data is published on the topic, the ManagedHub's 
  * onPublish security policy will be invoked to ensure that
  * this Container is permitted to receive the published data.
  * If the Container is allowed to receive the data, then the
  * Container's sendToClient function will be invoked.
- *
+ * 
  * When a Container needs to create a subscription on behalf of
  * its client, the Container MUST use this function to create
  * the subscription.
- *
- * @param {OpenAjax.hub.Container} container
+ * 
+ * @param {OpenAjax.hub.Container} container  
  *     A Container
- * @param {String} topic
+ * @param {String} topic 
  *     A valid topic
- * @param {String} containerSubID
- *     Arbitrary string ID that the Container uses to
- *     represent the subscription. Must be unique within the
+ * @param {String} containerSubID  
+ *     Arbitrary string ID that the Container uses to 
+ *     represent the subscription. Must be unique within the 
  *     context of the Container
  *
- * @returns managerSubID
- *     Arbitrary string ID that this ManagedHub uses to
- *     represent the subscription. Will be unique within the
+ * @returns managerSubID  
+ *     Arbitrary string ID that this ManagedHub uses to 
+ *     represent the subscription. Will be unique within the 
  *     context of this ManagedHub
  * @type {String}
- *
+ * 
  * @throws {OpenAjax.hub.Error.Disconnected} if this.isConnected() returns false
  * @throws {OpenAjax.hub.Error.NotAllowed} if subscription request is denied by the onSubscribe security policy
  * @throws {OpenAjax.hub.Error.BadParameters} if one of the parameters, e.g. the topic, is invalid
@@ -4839,20 +6911,20 @@ OpenAjax.hub.ManagedHub.prototype.subscribeForClient = function( container, topi
 }
 
 /**
- * Unsubscribe from a subscription on behalf of a Container. Called only by
+ * Unsubscribe from a subscription on behalf of a Container. Called only by 
  * Container implementations, NOT by manager application code.
- *
+ * 
  * This function:
  * 1. Destroys the specified subscription
  * 2. Calls the ManagedHub's onUnsubscribe callback function
- *
+ * 
  * This function can be called even if the ManagedHub is not in a CONNECTED state.
- *
- * @param {OpenAjax.hub.Container} container
+ * 
+ * @param {OpenAjax.hub.Container} container  
  *    container instance that is unsubscribing
- * @param {String} managerSubID
+ * @param {String} managerSubID  
  *    opaque ID of a subscription, returned by previous call to subscribeForClient()
- *
+ * 
  * @throws {OpenAjax.hub.Error.NoSubscription} if subscriptionID does not refer to a valid subscription
  */
 OpenAjax.hub.ManagedHub.prototype.unsubscribeForClient = function( container, managerSubID )
@@ -4860,9 +6932,9 @@ OpenAjax.hub.ManagedHub.prototype.unsubscribeForClient = function( container, ma
     this._unsubscribe( managerSubID );
     this._invokeOnUnsubscribe( container, managerSubID );
 }
-
+  
 /**
- * Publish data on a topic on behalf of a Container. Called only by
+ * Publish data on a topic on behalf of a Container. Called only by 
  * Container implementations, NOT by manager application code.
  *
  * @param {OpenAjax.hub.Container} container
@@ -4873,7 +6945,7 @@ OpenAjax.hub.ManagedHub.prototype.unsubscribeForClient = function( container, ma
  *      Valid publishable data. To be portable across different
  *      Container implementations, this value SHOULD be serializable
  *      as JSON.
- *
+ * 
  * @throws {OpenAjax.hub.Error.Disconnected} if this.isConnected() returns false
  * @throws {OpenAjax.hub.Error.BadParameters} if one of the parameters, e.g. the topic, is invalid
  */
@@ -4885,11 +6957,11 @@ OpenAjax.hub.ManagedHub.prototype.publishForClient = function( container, topic,
 
 /**
  * Destroy this ManagedHub
- *
+ * 
  * 1. Sets state to DISCONNECTED. All subsequent attempts to add containers,
  *  publish or subscribe will throw the Disconnected error. We will
  *  continue to allow "cleanup" operations such as removeContainer
- *  and unsubscribe, as well as read-only operations such as
+ *  and unsubscribe, as well as read-only operations such as 
  *  isConnected
  * 2. Remove all Containers associated with this ManagedHub
  */
@@ -4904,16 +6976,16 @@ OpenAjax.hub.ManagedHub.prototype.disconnect = function()
 /**
  * Get a container belonging to this ManagedHub by its clientID, or null
  * if this ManagedHub has no such container
- *
+ * 
  * This function can be called even if the ManagedHub is not in a CONNECTED state.
- *
+ * 
  * @param {String} containerId
  *      Arbitrary string ID associated with the container
  *
  * @returns container associated with given ID
  * @type {OpenAjax.hub.Container}
  */
-OpenAjax.hub.ManagedHub.prototype.getContainer = function( containerId )
+OpenAjax.hub.ManagedHub.prototype.getContainer = function( containerId ) 
 {
     var container = this._containers[containerId];
     return container ? container : null;
@@ -4922,16 +6994,16 @@ OpenAjax.hub.ManagedHub.prototype.getContainer = function( containerId )
 /**
  * Returns an array listing all containers belonging to this ManagedHub.
  * The order of the Containers in this array is arbitrary.
- *
+ * 
  * This function can be called even if the ManagedHub is not in a CONNECTED state.
- *
+ * 
  * @returns container array
  * @type {OpenAjax.hub.Container[]}
  */
-OpenAjax.hub.ManagedHub.prototype.listContainers = function()
+OpenAjax.hub.ManagedHub.prototype.listContainers = function() 
 {
     var res = [];
-    for (var c in this._containers) {
+    for (var c in this._containers) { 
         res.push(this._containers[c]);
     }
     return res;
@@ -4941,16 +7013,16 @@ OpenAjax.hub.ManagedHub.prototype.listContainers = function()
  * Add a container to this ManagedHub.
  *
  * This function should only be called by a Container constructor.
- *
+ * 
  * @param {OpenAjax.hub.Container} container
  *      A Container to be added to this ManagedHub
- *
+ * 
  * @throws {OpenAjax.hub.Error.Duplicate} if there is already a Container
  *      in this ManagedHub whose clientId is the same as that of container
  * @throws {OpenAjax.hub.Error.Disconnected} if this.isConnected() returns false
  */
-OpenAjax.hub.ManagedHub.prototype.addContainer = function( container )
-{
+OpenAjax.hub.ManagedHub.prototype.addContainer = function( container ) 
+{ 
     this._assertConn();
     var containerId = container.getClientID();
     if ( this._containers[containerId] ) {
@@ -4961,12 +7033,12 @@ OpenAjax.hub.ManagedHub.prototype.addContainer = function( container )
 
 /**
  * Remove a container from this ManagedHub immediately
- *
+ * 
  * This function can be called even if the ManagedHub is not in a CONNECTED state.
- *
- * @param {OpenAjax.hub.Container} container
+ * 
+ * @param {OpenAjax.hub.Container} container  
  *      A Container to be removed from this ManagedHub
- *
+ *  
  * @throws {OpenAjax.hub.Error.NoContainer}  if no such container is found
  */
 OpenAjax.hub.ManagedHub.prototype.removeContainer = function( container )
@@ -4983,58 +7055,58 @@ OpenAjax.hub.ManagedHub.prototype.removeContainer = function( container )
 
 /**
  * Subscribe to a topic.
- *
- * This implementation of Hub.subscribe is synchronous. When subscribe
+ * 
+ * This implementation of Hub.subscribe is synchronous. When subscribe 
  * is called:
- *
- * 1. The ManagedHub's onSubscribe callback is invoked. The
- *      container parameter is null, because the manager application,
+ * 
+ * 1. The ManagedHub's onSubscribe callback is invoked. The 
+ *      container parameter is null, because the manager application, 
  *      rather than a container, is subscribing.
  * 2. If onSubscribe returns true, then the subscription is created.
  * 3. The onComplete callback is invoked.
  * 4. Then this function returns.
- *
+ * 
  * @param {String} topic
  *     A valid topic string. MAY include wildcards.
- * @param {Function} onData
- *     Callback function that is invoked whenever an event is
+ * @param {Function} onData   
+ *     Callback function that is invoked whenever an event is 
  *     published on the topic
  * @param {Object} [scope]
  *     When onData callback or onComplete callback is invoked,
  *     the JavaScript "this" keyword refers to this scope object.
  *     If no scope is provided, default is window.
  * @param {Function} [onComplete]
- *     Invoked to tell the client application whether the
- *     subscribe operation succeeded or failed.
+ *     Invoked to tell the client application whether the 
+ *     subscribe operation succeeded or failed. 
  * @param {*} [subscriberData]
  *     Client application provides this data, which is handed
  *     back to the client application in the subscriberData
  *     parameter of the onData and onComplete callback functions.
- *
+ * 
  * @returns subscriptionID
- *     Identifier representing the subscription. This identifier is an
+ *     Identifier representing the subscription. This identifier is an 
  *     arbitrary ID string that is unique within this Hub instance
  * @type {String}
- *
+ * 
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
  * @throws {OpenAjax.hub.Error.BadParameters} if the topic is invalid (e.g. contains an empty token)
  */
-OpenAjax.hub.ManagedHub.prototype.subscribe = function( topic, onData, scope, onComplete, subscriberData )
+OpenAjax.hub.ManagedHub.prototype.subscribe = function( topic, onData, scope, onComplete, subscriberData ) 
 {
     this._assertConn();
     this._assertSubTopic(topic);
     if ( ! onData ) {
         throw new Error( OpenAjax.hub.Error.BadParameters );
     }
-
+    
     scope = scope || window;
-
+    
     // check subscribe permission
     if ( ! this._invokeOnSubscribe( topic, null ) ) {
         this._invokeOnComplete( onComplete, scope, null, false, OpenAjax.hub.Error.NotAllowed );
         return;
     }
-
+    
     // on publish event, check publish permissions
     var that = this;
     function publishCB( topic, data, sd, pcont ) {
@@ -5055,9 +7127,9 @@ OpenAjax.hub.ManagedHub.prototype.subscribe = function( topic, onData, scope, on
 /**
  * Publish an event on a topic
  *
- * This implementation of Hub.publish is synchronous. When publish
+ * This implementation of Hub.publish is synchronous. When publish 
  * is called:
- *
+ * 
  * 1. The target subscriptions are identified.
  * 2. For each target subscription, the ManagedHub's onPublish
  *      callback is invoked. Data is only delivered to a target
@@ -5065,19 +7137,19 @@ OpenAjax.hub.ManagedHub.prototype.subscribe = function( topic, onData, scope, on
  *      The pcont parameter of the onPublish callback is null.
  *      This is because the ManagedHub, rather than a container,
  *      is publishing the data.
- *
+ * 
  * @param {String} topic
  *     A valid topic string. MUST NOT include wildcards.
  * @param {*} data
  *     Valid publishable data. To be portable across different
  *     Container implementations, this value SHOULD be serializable
  *     as JSON.
- *
+ *     
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
- * @throws {OpenAjax.hub.Error.BadParameters} if the topic cannot be published (e.g. contains
+ * @throws {OpenAjax.hub.Error.BadParameters} if the topic cannot be published (e.g. contains 
  *     wildcards or empty tokens) or if the data cannot be published (e.g. cannot be serialized as JSON)
  */
-OpenAjax.hub.ManagedHub.prototype.publish = function( topic, data )
+OpenAjax.hub.ManagedHub.prototype.publish = function( topic, data ) 
 {
     this._assertConn();
     this._assertPubTopic(topic);
@@ -5086,15 +7158,15 @@ OpenAjax.hub.ManagedHub.prototype.publish = function( topic, data )
 
 /**
  * Unsubscribe from a subscription
- *
- * This implementation of Hub.unsubscribe is synchronous. When unsubscribe
+ * 
+ * This implementation of Hub.unsubscribe is synchronous. When unsubscribe 
  * is called:
- *
+ * 
  * 1. The subscription is destroyed.
  * 2. The ManagedHub's onUnsubscribe callback is invoked, if there is one.
  * 3. The onComplete callback is invoked.
  * 4. Then this function returns.
- *
+ * 
  * @param {String} subscriptionID
  *     A subscriptionID returned by Hub.subscribe()
  * @param {Function} [onComplete]
@@ -5103,7 +7175,7 @@ OpenAjax.hub.ManagedHub.prototype.publish = function( topic, data )
  *     When onComplete callback function is invoked, the JavaScript "this"
  *     keyword refers to this scope object.
  *     If no scope is provided, default is window.
- *
+ *     
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
  * @throws {OpenAjax.hub.Error.NoSubscription} if no such subscription is found
  */
@@ -5119,9 +7191,9 @@ OpenAjax.hub.ManagedHub.prototype.unsubscribe = function( subscriptionID, onComp
 }
 
 /**
- * Returns true if disconnect() has NOT been called on this ManagedHub,
+ * Returns true if disconnect() has NOT been called on this ManagedHub, 
  * else returns false
- *
+ * 
  * @returns Boolean
  * @type {Boolean}
  */
@@ -5133,9 +7205,9 @@ OpenAjax.hub.ManagedHub.prototype.isConnected = function()
 /**
 * Returns the scope associated with this Hub instance and which will be used
 * with callback functions.
-*
+* 
 * This function can be called even if the Hub is not in a CONNECTED state.
-*
+* 
 * @returns scope object
 * @type {Object}
  */
@@ -5145,15 +7217,15 @@ OpenAjax.hub.ManagedHub.prototype.getScope = function()
 }
 
 /**
- * Returns the subscriberData parameter that was provided when
+ * Returns the subscriberData parameter that was provided when 
  * Hub.subscribe was called.
  *
  * @param subscriberID
  *     The subscriberID of a subscription
- *
+ * 
  * @returns subscriberData
  * @type {*}
- *
+ * 
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
  * @throws {OpenAjax.hub.Error.NoSubscription} if there is no such subscription
  */
@@ -5163,7 +7235,7 @@ OpenAjax.hub.ManagedHub.prototype.getSubscriberData = function( subscriberID )
     var path = subscriberID.split(".");
     var sid = path.pop();
     var sub = this._getSubscriptionObject( this._subscriptions, path, 0, sid );
-    if ( sub )
+    if ( sub ) 
         return sub.data;
     throw new Error( OpenAjax.hub.Error.NoSubscription );
 }
@@ -5174,10 +7246,10 @@ OpenAjax.hub.ManagedHub.prototype.getSubscriberData = function( subscriberID )
  *
  * @param subscriberID
  *     The subscriberID of a subscription
- *
+ * 
  * @returns scope
  * @type {*}
- *
+ * 
  * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
  * @throws {OpenAjax.hub.Error.NoSubscription} if there is no such subscription
  */
@@ -5187,7 +7259,7 @@ OpenAjax.hub.ManagedHub.prototype.getSubscriberScope = function( subscriberID )
     var path = subscriberID.split(".");
     var sid = path.pop();
     var sub = this._getSubscriptionObject( this._subscriptions, path, 0, sid );
-    if ( sub )
+    if ( sub ) 
         return sub.scope;
     throw new Error( OpenAjax.hub.Error.NoSubscription );
 }
@@ -5209,19 +7281,19 @@ OpenAjax.hub.ManagedHub.prototype.getParameters = function()
 /* PRIVATE FUNCTIONS */
 
 /**
- * Send a message to a container's client.
+ * Send a message to a container's client. 
  * This is an OAH subscriber's data callback. It is private to ManagedHub
  * and serves as an adapter between the OAH 1.0 API and Container.sendToClient.
- *
+ * 
  * @param {String} topic Topic on which data was published
  * @param {Object} data  Data to be delivered to the client
- * @param {Object} sd    Object containing properties
+ * @param {Object} sd    Object containing properties 
  *     c: container to which data must be sent
  *     sid: subscription ID within that container
  * @param {Object} pcont  Publishing container, or null if this data was
  *      published by the manager
  */
-OpenAjax.hub.ManagedHub.prototype._sendToClient = function(topic, data, sd, pcont)
+OpenAjax.hub.ManagedHub.prototype._sendToClient = function(topic, data, sd, pcont) 
 {
     if (!this.isConnected()) {
         return;
@@ -5231,14 +7303,14 @@ OpenAjax.hub.ManagedHub.prototype._sendToClient = function(topic, data, sd, pcon
     }
 }
 
-OpenAjax.hub.ManagedHub.prototype._assertConn = function()
+OpenAjax.hub.ManagedHub.prototype._assertConn = function() 
 {
     if (!this.isConnected()) {
         throw new Error(OpenAjax.hub.Error.Disconnected);
     }
 }
 
-OpenAjax.hub.ManagedHub.prototype._assertPubTopic = function(topic)
+OpenAjax.hub.ManagedHub.prototype._assertPubTopic = function(topic) 
 {
     if ( !topic || topic === "" || (topic.indexOf("*") != -1) ||
         (topic.indexOf("..") != -1) ||  (topic.charAt(0) == ".") ||
@@ -5248,7 +7320,7 @@ OpenAjax.hub.ManagedHub.prototype._assertPubTopic = function(topic)
     }
 }
 
-OpenAjax.hub.ManagedHub.prototype._assertSubTopic = function(topic)
+OpenAjax.hub.ManagedHub.prototype._assertSubTopic = function(topic) 
 {
     if ( ! topic ) {
         throw new Error(OpenAjax.hub.Error.BadParameters);
@@ -5315,7 +7387,7 @@ OpenAjax.hub.ManagedHub.prototype._invokeOnUnsubscribe = function( container, ma
     }
 }
 
-OpenAjax.hub.ManagedHub.prototype._subscribe = function( topic, onData, scope, subscriberData )
+OpenAjax.hub.ManagedHub.prototype._subscribe = function( topic, onData, scope, subscriberData ) 
 {
     var handle = topic + "." + this._seq;
     var sub = { scope: scope, cb: onData, data: subscriberData, sid: this._seq++ };
@@ -5324,18 +7396,18 @@ OpenAjax.hub.ManagedHub.prototype._subscribe = function( topic, onData, scope, s
     return handle;
 }
 
-OpenAjax.hub.ManagedHub.prototype._recursiveSubscribe = function(tree, path, index, sub)
+OpenAjax.hub.ManagedHub.prototype._recursiveSubscribe = function(tree, path, index, sub) 
 {
     var token = path[index];
     if (index == path.length) {
         sub.next = tree.s;
         tree.s = sub;
-    } else {
+    } else { 
         if (typeof tree.c == "undefined") {
              tree.c = {};
          }
         if (typeof tree.c[token] == "undefined") {
-            tree.c[token] = { c: {}, s: null };
+            tree.c[token] = { c: {}, s: null }; 
             this._recursiveSubscribe(tree.c[token], path, index + 1, sub);
         } else {
             this._recursiveSubscribe( tree.c[token], path, index + 1, sub);
@@ -5351,9 +7423,9 @@ OpenAjax.hub.ManagedHub.prototype._publish = function( topic, data, pcont )
         this._pubQ.push( { t: topic, d: data, p: pcont } );
         return;
     }
-
+    
     this._safePublish( topic, data, pcont );
-
+    
     while ( this._pubQ.length > 0 ) {
         var pub = this._pubQ.shift();
         this._safePublish( pub.t, pub.d, pub.p );
@@ -5368,7 +7440,7 @@ OpenAjax.hub.ManagedHub.prototype._safePublish = function( topic, data, pcont )
     this._isPublishing = false;
 }
 
-OpenAjax.hub.ManagedHub.prototype._recursivePublish = function(tree, path, index, name, msg, pcont)
+OpenAjax.hub.ManagedHub.prototype._recursivePublish = function(tree, path, index, name, msg, pcont) 
 {
     if (typeof tree != "undefined") {
         var node;
@@ -5408,12 +7480,12 @@ OpenAjax.hub.ManagedHub.prototype._unsubscribe = function( subscriptionID )
 /**
  * @returns 'true' if properly unsubscribed; 'false' otherwise
  */
-OpenAjax.hub.ManagedHub.prototype._recursiveUnsubscribe = function(tree, path, index, sid)
+OpenAjax.hub.ManagedHub.prototype._recursiveUnsubscribe = function(tree, path, index, sid) 
 {
     if ( typeof tree == "undefined" ) {
         return false;
     }
-
+    
     if (index < path.length) {
         var childNode = tree.c[path[index]];
         if ( ! childNode ) {
@@ -5424,7 +7496,7 @@ OpenAjax.hub.ManagedHub.prototype._recursiveUnsubscribe = function(tree, path, i
             for (var x in childNode.c) {
                 return true;
             }
-            delete tree.c[path[index]];
+            delete tree.c[path[index]];    
         }
     } else {
         var sub = tree.s;
@@ -5447,7 +7519,7 @@ OpenAjax.hub.ManagedHub.prototype._recursiveUnsubscribe = function(tree, path, i
             return false;
         }
     }
-
+    
     return true;
 }
 
@@ -5476,7 +7548,7 @@ OpenAjax.hub.ManagedHub.prototype._getSubscriptionObject = function( tree, path,
 /**
  * Container
  * @constructor
- *
+ * 
  * Container represents an instance of a manager-side object that contains and
  * communicates with a single client of the hub. The container might be an inline
  * container, an iframe FIM container, or an iframe PostMessage container, or
@@ -5487,13 +7559,13 @@ OpenAjax.hub.ManagedHub.prototype._getSubscriptionObject = function( tree, path,
  * @param {String} clientID
  *    A string ID that identifies a particular client of a Managed Hub. Unique
  *    within the context of the ManagedHub.
- * @param {Object} params
+ * @param {Object} params  
  *    Parameters used to instantiate the Container.
  *    Once the constructor is called, the params object belongs exclusively to
  *    the Container. The caller MUST not modify it.
  *    Implementations of Container may specify additional properties
  *    for the params object, besides those identified below.
- *    The following params properties MUST be supported by all Container
+ *    The following params properties MUST be supported by all Container 
  *    implementations:
  * @param {Function} params.Container.onSecurityAlert
  *    Called when an attempted security breach is thwarted.  Function is defined
@@ -5510,7 +7582,7 @@ OpenAjax.hub.ManagedHub.prototype._getSubscriptionObject = function( tree, path,
  *    provided, default is window.
  * @param {Function} [params.Container.log]
  *    Optional logger function. Would be used to log to console.log or
- *    equivalent.
+ *    equivalent. 
  *
  * @throws {OpenAjax.hub.Error.BadParameters}   if required params are not
  *   present or null
@@ -5522,8 +7594,8 @@ OpenAjax.hub.ManagedHub.prototype._getSubscriptionObject = function( tree, path,
 
 /**
  * Send a message to the client inside this container. This function MUST only
- * be called by ManagedHub.
- *
+ * be called by ManagedHub. 
+ * 
  * @param {String} topic
  *    The topic name for the published message
  * @param {*} data
@@ -5538,7 +7610,7 @@ OpenAjax.hub.ManagedHub.prototype._getSubscriptionObject = function( tree, path,
  * Shut down a container. remove does all of the following:
  * - disconnects container from HubClient
  * - unsubscribes from all of its existing subscriptions in the ManagedHub
- *
+ * 
  * This function is only called by ManagedHub.removeContainer
  * Calling this function does NOT cause the container's onDisconnect callback to
  * be invoked.
@@ -5558,7 +7630,7 @@ OpenAjax.hub.ManagedHub.prototype._getSubscriptionObject = function( tree, path,
  * Returns the clientID passed in when this Container was instantiated.
  *
  * @returns The clientID
- * @type {String}
+ * @type {String}  
  */
 //OpenAjax.hub.Container.prototype.getClientID = function() {}
 
@@ -5568,14 +7640,14 @@ OpenAjax.hub.ManagedHub.prototype._getSubscriptionObject = function( tree, path,
  * If CONNECTED:
  * Returns the origin associated with the window containing the HubClient
  * associated with this Container instance. The origin has the format
- *
+ *  
  * [protocol]://[host]
- *
+ * 
  * where:
- *
+ * 
  * [protocol] is "http" or "https"
  * [host] is the hostname of the partner page.
- *
+ * 
  * @returns Partner's origin
  * @type {String}
  */
@@ -5606,10 +7678,10 @@ OpenAjax.hub.ManagedHub.prototype._getSubscriptionObject = function( tree, path,
  */
 
 /**
- * OpenAjax.hub._hub is the default ManagedHub instance that we use to
- * provide OAH 1.0 behavior.
+ * OpenAjax.hub._hub is the default ManagedHub instance that we use to 
+ * provide OAH 1.0 behavior. 
  */
-OpenAjax.hub._hub = new OpenAjax.hub.ManagedHub({
+OpenAjax.hub._hub = new OpenAjax.hub.ManagedHub({ 
     onSubscribe: function(topic, ctnr) { return true; },
     onPublish: function(topic, data, pcont, scont) { return true; }
 });
@@ -5631,20 +7703,20 @@ OpenAjax.hub._hub = new OpenAjax.hub.ManagedHub({
  *     Client application provides this data, which is handed
  *     back to the client application in the subscriberData
  *     parameter of the onData callback function.
- *
+ * 
  * @returns {String} Identifier representing the subscription.
- *
+ * 
  * @throws {OpenAjax.hub.Error.BadParameters} if the topic is invalid
  *     (e.g.contains an empty token)
  */
-OpenAjax.hub.subscribe = function(topic, onData, scope, subscriberData)
+OpenAjax.hub.subscribe = function(topic, onData, scope, subscriberData) 
 {
     // resolve the 'onData' function if it is a string
     if ( typeof onData === "string" ) {
         scope = scope || window;
         onData = scope[ onData ] || null;
     }
-
+    
     return OpenAjax.hub._hub.subscribe( topic, onData, scope, null, subscriberData );
 }
 
@@ -5653,10 +7725,10 @@ OpenAjax.hub.subscribe = function(topic, onData, scope, subscriberData)
  *
  * @param {String} subscriptionID
  *     Subscription identifier returned by subscribe()
- *
+ *     
  * @throws {OpenAjax.hub.Error.NoSubscription} if no such subscription is found
  */
-OpenAjax.hub.unsubscribe = function(subscriptionID)
+OpenAjax.hub.unsubscribe = function(subscriptionID) 
 {
     return OpenAjax.hub._hub.unsubscribe( subscriptionID );
 }
@@ -5668,11 +7740,11 @@ OpenAjax.hub.unsubscribe = function(subscriptionID)
  *     A valid topic string. MUST NOT include wildcards.
  * @param {*} data
  *     Valid publishable data.
- *
+ *     
  * @throws {OpenAjax.hub.Error.BadParameters} if the topic cannot be published
  *     (e.g. contains wildcards or empty tokens)
  */
-OpenAjax.hub.publish = function(topic, data)
+OpenAjax.hub.publish = function(topic, data) 
 {
     OpenAjax.hub._hub.publish(topic, data);
 }
@@ -5691,16 +7763,16 @@ return OpenAjax;
 
         Copyright 2006-2009 OpenAjax Alliance
 
-        Licensed under the Apache License, Version 2.0 (the "License");
-        you may not use this file except in compliance with the License.
+        Licensed under the Apache License, Version 2.0 (the "License"); 
+        you may not use this file except in compliance with the License. 
         You may obtain a copy of the License at
-
+        
                 http://www.apache.org/licenses/LICENSE-2.0
 
-        Unless required by applicable law or agreed to in writing, software
-        distributed under the License is distributed on an "AS IS" BASIS,
-        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-        See the License for the specific language governing permissions and
+        Unless required by applicable law or agreed to in writing, software 
+        distributed under the License is distributed on an "AS IS" BASIS, 
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+        See the License for the specific language governing permissions and 
         limitations under the License.
 */
 
@@ -5717,13 +7789,13 @@ define('OpenAjax/containers/inline/inline',['OpenAjax/hub/hub'], function( OpenA
  * that places components within the same browser frame as the main mashup
  * application. As such, this container does not isolate client components into
  * secure sandboxes.
- *
+ * 
  * @param {OpenAjax.hub.ManagedHub} hub
  *    Managed Hub instance to which this Container belongs
  * @param {String} clientID
  *    A string ID that identifies a particular client of a Managed Hub. Unique
  *    within the context of the ManagedHub.
- * @param {Object} params
+ * @param {Object} params  
  *    Parameters used to instantiate the InlineContainer.
  *    Once the constructor is called, the params object belongs exclusively to
  *    the InlineContainer. The caller MUST not modify it.
@@ -5743,7 +7815,7 @@ define('OpenAjax/containers/inline/inline',['OpenAjax/hub/hub'], function( OpenA
  *    provided, default is window.
  * @param {Function} [params.Container.log]
  *    Optional logger function. Would be used to log to console.log or
- *    equivalent.
+ *    equivalent. 
  *
  * @throws {OpenAjax.hub.Error.BadParameters}   if required params are not
  *    present or null
@@ -5757,13 +7829,13 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
             ! params.Container || ! params.Container.onSecurityAlert ) {
         throw new Error(OpenAjax.hub.Error.BadParameters);
     }
-
+    
     var cbScope = params.Container.scope || window;
     var connected = false;
     var subs = [];
     var subIndex = 0;
     var client = null;
-
+    
     if ( params.Container.log ) {
         var log = function( msg ) {
             try {
@@ -5775,17 +7847,17 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
     } else {
         log = function() {};
     }
-
+    
     this._init = function() {
         hub.addContainer( this );
     };
 
   /*** OpenAjax.hub.Container interface implementation ***/
-
+    
     this.getHub = function() {
-      return hub;
+    	return hub;
     };
-
+    
     this.sendToClient = function( topic, data, subscriptionID ) {
         if ( connected ) {
             var sub = subs[ subscriptionID ];
@@ -5797,42 +7869,42 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
             }
         }
     };
-
+    
     this.remove = function() {
         if ( connected ) {
             finishDisconnect();
         }
     };
-
+    
     this.isConnected = function() {
         return connected;
     };
-
+    
     this.getClientID = function() {
         return clientID;
     };
-
+    
     this.getPartnerOrigin = function() {
         if ( connected ) {
             return window.location.protocol + "//" + window.location.hostname;
         }
         return null;
     };
-
+    
     this.getParameters = function() {
         return params;
     };
-
+    
   /*** OpenAjax.hub.HubClient interface implementation ***/
-
+    
     this.connect = function( hubClient, onComplete, scope ) {
         if ( connected ) {
             throw new Error( OpenAjax.hub.Error.Duplicate );
         }
-
+        
         connected = true;
         client = hubClient;
-
+        
         if ( params.Container.onConnect ) {
             try {
                 params.Container.onConnect.call( cbScope, this );
@@ -5841,17 +7913,17 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
                 log( "caught error from onConnect callback to constructor: " + e.message );
             }
         }
-
+        
         invokeOnComplete( onComplete, scope, hubClient, true );
     };
-
+    
     this.disconnect = function( hubClient, onComplete, scope ) {
         if ( ! connected ) {
             throw new Error( OpenAjax.hub.Error.Disconnected );
         }
-
+        
         finishDisconnect();
-
+    
         if ( params.Container.onDisconnect ) {
             try {
                 params.Container.onDisconnect.call( cbScope, this );
@@ -5860,19 +7932,19 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
                 log( "caught error from onDisconnect callback to constructor: " + e.message );
             }
         }
-
+        
         invokeOnComplete( onComplete, scope, hubClient, true );
     };
-
+    
   /*** OpenAjax.hub.Hub interface implementation ***/
-
+    
     this.subscribe = function( topic, onData, scope, onComplete, subscriberData ) {
         assertConn();
         assertSubTopic( topic );
         if ( ! onData ) {
             throw new Error( OpenAjax.hub.Error.BadParameters );
         }
-
+        
         var subID = "" + subIndex++;
         var success = false;
         var msg = null;
@@ -5884,49 +7956,49 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
             subID = null;
             msg = e.message;
         }
-
+        
         scope = scope || window;
         if ( success ) {
             subs[ subID ] = { h: handle, cb: onData, sc: scope, d: subscriberData };
         }
-
+        
         invokeOnComplete( onComplete, scope, subID, success, msg );
         return subID;
     };
-
+    
     this.publish = function( topic, data ) {
         assertConn();
         assertPubTopic( topic );
         hub.publishForClient( this, topic, data );
     };
-
+    
     this.unsubscribe = function( subscriptionID, onComplete, scope ) {
         assertConn();
         if ( typeof subscriptionID === "undefined" || subscriptionID === null ) {
             throw new Error( OpenAjax.hub.Error.BadParameters );
         }
         var sub = subs[ subscriptionID ];
-        if ( ! sub ) {
+        if ( ! sub ) { 
             throw new Error( OpenAjax.hub.Error.NoSubscription );
-        }
+        }    
         hub.unsubscribeForClient( this, sub.h );
         delete subs[ subscriptionID ];
-
+        
         invokeOnComplete( onComplete, scope, subscriptionID, true );
     };
-
+    
     this.getSubscriberData = function( subID ) {
         assertConn();
         return getSubscription( subID ).d;
     };
-
+    
     this.getSubscriberScope = function( subID ) {
         assertConn();
         return getSubscription( subID ).sc;
     };
-
+    
   /*** PRIVATE FUNCTIONS ***/
-
+    
     function invokeOnComplete( func, scope, item, success, errorCode ) {
         if ( func ) { // onComplete is optional
             try {
@@ -5939,7 +8011,7 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
             }
         }
     }
-
+    
     function finishDisconnect() {
         for ( var subID in subs ) {
             hub.unsubscribeForClient( this, subs[subID].h );
@@ -5948,13 +8020,13 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
         subIndex = 0;
         connected = false;
     }
-
+    
     function assertConn() {
         if ( ! connected ) {
             throw new Error( OpenAjax.hub.Error.Disconnected );
         }
     }
-
+    
     function assertPubTopic( topic ) {
         if ((topic == null) || (topic === "") || (topic.indexOf("*") != -1) ||
             (topic.indexOf("..") != -1) ||  (topic.charAt(0) == ".") ||
@@ -5963,7 +8035,7 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
             throw new Error(OpenAjax.hub.Error.BadParameters);
         }
     }
-
+    
     function assertSubTopic( topic ) {
         if ( ! topic ) {
             throw new Error(OpenAjax.hub.Error.BadParameters);
@@ -5981,7 +8053,7 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
             }
         }
     }
-
+    
     function getSubscription( subID ) {
         var sub = subs[ subID ];
         if ( sub ) {
@@ -5989,8 +8061,8 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
         }
         throw new Error( OpenAjax.hub.Error.NoSubscription );
     }
-
-
+    
+    
     this._init();
 };
 
@@ -6000,8 +8072,8 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
  * Create a new InlineHubClient.
  * @constructor
  * @extends OpenAjax.hub.HubClient
- *
- * @param {Object} params
+ * 
+ * @param {Object} params 
  *    Parameters used to instantiate the HubClient.
  *    Once the constructor is called, the params object belongs to the
  *    HubClient. The caller MUST not modify it.
@@ -6014,10 +8086,10 @@ OpenAjax.hub.InlineContainer = function( hub, clientID, params )
  *     If not provided, the default is window.
  * @param {Function} [params.HubClient.log]
  *     Optional logger function. Would be used to log to console.log or
- *     equivalent.
+ *     equivalent. 
  * @param {OpenAjax.hub.InlineContainer} params.InlineHubClient.container
  *     Specifies the InlineContainer to which this HubClient will connect
- *
+ *  
  * @throws {OpenAjax.hub.Error.BadParameters} if any of the required
  *     parameters are missing
  */
@@ -6027,10 +8099,10 @@ OpenAjax.hub.InlineHubClient = function( params )
             ! params.InlineHubClient || ! params.InlineHubClient.container ) {
         throw new Error(OpenAjax.hub.Error.BadParameters);
     }
-
+    
     var container = params.InlineHubClient.container;
     var scope = params.HubClient.scope || window;
-
+    
     if ( params.HubClient.log ) {
         var log = function( msg ) {
             try {
@@ -6045,126 +8117,126 @@ OpenAjax.hub.InlineHubClient = function( params )
     this._log = log;
 
   /*** OpenAjax.hub.HubClient interface implementation ***/
-
+    
     /**
      * Requests a connection to the ManagedHub, via the InlineContainer
      * associated with this InlineHubClient.
-     *
-     * If the Container accepts the connection request, this HubClient's
-     * state is set to CONNECTED and the HubClient invokes the
+     * 
+     * If the Container accepts the connection request, this HubClient's 
+     * state is set to CONNECTED and the HubClient invokes the 
      * onComplete callback function.
-     *
+     * 
      * If the Container refuses the connection request, the HubClient
-     * invokes the onComplete callback function with an error code.
-     * The error code might, for example, indicate that the Container
+     * invokes the onComplete callback function with an error code. 
+     * The error code might, for example, indicate that the Container 
      * is being destroyed.
-     *
+     * 
      * If the HubClient is already connected, calling connect will cause
      * the HubClient to immediately invoke the onComplete callback with
      * the error code OpenAjax.hub.Error.Duplicate.
-     *
+     * 
      * @param {Function} [onComplete]
      *     Callback function to call when this operation completes.
-     * @param {Object} [scope]
+     * @param {Object} [scope]  
      *     When the onComplete function is invoked, the JavaScript "this"
      *     keyword refers to this scope object.
      *     If no scope is provided, default is window.
-     *
-     * In this implementation of InlineHubClient, this function operates
-     * SYNCHRONOUSLY, so the onComplete callback function is invoked before
-     * this connect function returns. Developers are cautioned that in
+     *    
+     * In this implementation of InlineHubClient, this function operates 
+     * SYNCHRONOUSLY, so the onComplete callback function is invoked before 
+     * this connect function returns. Developers are cautioned that in  
      * IframeHubClient implementations, this is not the case.
-     *
+     * 
      * A client application may call InlineHubClient.disconnect and then call
      * InlineHubClient.connect to reconnect to the Managed Hub.
      */
     this.connect = function( onComplete, scope ) {
         container.connect( this, onComplete, scope );
     };
-
+    
     /**
      * Disconnect from the ManagedHub
-     *
+     * 
      * Disconnect immediately:
-     *
+     * 
      * 1. Sets the HubClient's state to DISCONNECTED.
-     * 2. Causes the HubClient to send a Disconnect request to the
-     *    associated Container.
+     * 2. Causes the HubClient to send a Disconnect request to the 
+     * 		associated Container. 
      * 3. Ensures that the client application will receive no more
-     *    onData or onComplete callbacks associated with this
-     *    connection, except for the disconnect function's own
-     *    onComplete callback.
+     * 		onData or onComplete callbacks associated with this 
+     * 		connection, except for the disconnect function's own
+     * 		onComplete callback.
      * 4. Automatically destroys all of the HubClient's subscriptions.
-     *
+     * 	
      * @param {Function} [onComplete]
      *     Callback function to call when this operation completes.
-     * @param {Object} [scope]
+     * @param {Object} [scope]  
      *     When the onComplete function is invoked, the JavaScript "this"
      *     keyword refers to the scope object.
      *     If no scope is provided, default is window.
-     *
-     * In this implementation of InlineHubClient, the disconnect function operates
-     * SYNCHRONOUSLY, so the onComplete callback function is invoked before
-     * this function returns. Developers are cautioned that in IframeHubClient
-     * implementations, this is not the case.
-     *
-     * A client application is allowed to call HubClient.disconnect and
+     *    
+     * In this implementation of InlineHubClient, the disconnect function operates 
+     * SYNCHRONOUSLY, so the onComplete callback function is invoked before 
+     * this function returns. Developers are cautioned that in IframeHubClient 
+     * implementations, this is not the case.   
+     * 
+     * A client application is allowed to call HubClient.disconnect and 
      * then call HubClient.connect in order to reconnect.
      */
     this.disconnect = function( onComplete, scope ) {
         container.disconnect( this, onComplete, scope );
     };
-
+    
     this.getPartnerOrigin = function() {
         return container.getPartnerOrigin();
     };
-
+    
     this.getClientID = function() {
         return container.getClientID();
     };
-
+    
   /*** OpenAjax.hub.Hub interface implementation ***/
-
+    
     /**
      * Subscribe to a topic.
      *
      * @param {String} topic
      *     A valid topic string. MAY include wildcards.
-     * @param {Function} onData
-     *     Callback function that is invoked whenever an event is
+     * @param {Function} onData   
+     *     Callback function that is invoked whenever an event is 
      *     published on the topic
      * @param {Object} [scope]
      *     When onData callback or onComplete callback is invoked,
      *     the JavaScript "this" keyword refers to this scope object.
      *     If no scope is provided, default is window.
      * @param {Function} [onComplete]
-     *     Invoked to tell the client application whether the
-     *     subscribe operation succeeded or failed.
+     *     Invoked to tell the client application whether the 
+     *     subscribe operation succeeded or failed. 
      * @param {*} [subscriberData]
      *     Client application provides this data, which is handed
      *     back to the client application in the subscriberData
      *     parameter of the onData and onComplete callback functions.
-     *
+     * 
      * @returns subscriptionID
-     *     Identifier representing the subscription. This identifier is an
+     *     Identifier representing the subscription. This identifier is an 
      *     arbitrary ID string that is unique within this Hub instance
      * @type {String}
-     *
+     * 
      * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance is not in CONNECTED state
      * @throws {OpenAjax.hub.Error.BadParameters} if the topic is invalid (e.g. contains an empty token)
      *
-     * In this implementation of InlineHubClient, the subscribe function operates
-     * Thus, onComplete is invoked before this function returns. Developers are
-     * cautioned that in most implementations of HubClient, onComplete is invoked
+     * In this implementation of InlineHubClient, the subscribe function operates 
+     * Thus, onComplete is invoked before this function returns. Developers are 
+     * cautioned that in most implementations of HubClient, onComplete is invoked 
      * after this function returns.
-     *
-     * If unsubscribe is called before subscribe completes, the subscription is
+     * 
+     * If unsubscribe is called before subscribe completes, the subscription is 
      * immediately terminated, and onComplete is never invoked.
      */
     this.subscribe = function( topic, onData, scope, onComplete, subscriberData ) {
         return container.subscribe( topic, onData, scope, onComplete, subscriberData );
     };
-
+    
     /**
      * Publish an event on 'topic' with the given data.
      *
@@ -6174,19 +8246,19 @@ OpenAjax.hub.InlineHubClient = function( params )
      *     Valid publishable data. To be portable across different
      *     Container implementations, this value SHOULD be serializable
      *     as JSON.
-     *
-     * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance
+     *     
+     * @throws {OpenAjax.hub.Error.Disconnected} if this Hub instance 
      *     is not in CONNECTED state
-     *
-     * In this implementation, publish operates SYNCHRONOUSLY.
+     * 
+     * In this implementation, publish operates SYNCHRONOUSLY. 
      * Data will be delivered to subscribers after this function returns.
-     * In most implementations, publish operates synchronously,
+     * In most implementations, publish operates synchronously, 
      * delivering its data to the clients before this function returns.
      */
     this.publish = function( topic, data ) {
         container.publish( topic, data );
     };
-
+    
     /**
      * Unsubscribe from a subscription
      *
@@ -6197,37 +8269,37 @@ OpenAjax.hub.InlineHubClient = function( params )
      * @param {Object} [scope]
      *     When onComplete callback function is invoked, the JavaScript "this"
      *     keyword refers to this scope object.
-     *
+     *     
      * @throws {OpenAjax.hub.Error.NoSubscription} if no such subscription is found
-     *
-     * To facilitate cleanup, it is possible to call unsubscribe even
+     * 
+     * To facilitate cleanup, it is possible to call unsubscribe even 
      * when the HubClient is in a DISCONNECTED state.
-     *
-     * In this implementation of HubClient, this function operates SYNCHRONOUSLY.
-     * Thus, onComplete is invoked before this function returns. Developers are
-     * cautioned that in most implementations of HubClient, onComplete is invoked
+     * 
+     * In this implementation of HubClient, this function operates SYNCHRONOUSLY. 
+     * Thus, onComplete is invoked before this function returns. Developers are 
+     * cautioned that in most implementations of HubClient, onComplete is invoked 
      * after this function returns.
      */
     this.unsubscribe = function( subscriptionID, onComplete, scope ) {
         container.unsubscribe( subscriptionID, onComplete, scope );
     };
-
+    
     this.isConnected = function() {
         return container.isConnected();
     };
-
+    
     this.getScope = function() {
         return scope;
     };
-
+    
     this.getSubscriberData = function( subID ) {
         return container.getSubscriberData( subID );
     };
-
+    
     this.getSubscriberScope = function( subID ) {
         return container.getSubscriberScope( subID );
     };
-
+    
     /**
      * Returns the params object associated with this Hub instance.
      * Allows mix-in code to access parameters passed into constructor that created
@@ -6247,16 +8319,16 @@ return OpenAjax;
 
         Copyright 2006-2009 OpenAjax Alliance
 
-        Licensed under the Apache License, Version 2.0 (the "License");
-        you may not use this file except in compliance with the License.
+        Licensed under the Apache License, Version 2.0 (the "License"); 
+        you may not use this file except in compliance with the License. 
         You may obtain a copy of the License at
-
+        
                 http://www.apache.org/licenses/LICENSE-2.0
 
-        Unless required by applicable law or agreed to in writing, software
-        distributed under the License is distributed on an "AS IS" BASIS,
-        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-        See the License for the specific language governing permissions and
+        Unless required by applicable law or agreed to in writing, software 
+        distributed under the License is distributed on an "AS IS" BASIS, 
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+        See the License for the specific language governing permissions and 
         limitations under the License.
 */
 
@@ -6285,7 +8357,7 @@ OpenAjax.gadgets.rpctx = OpenAjax.gadgets.rpctx || {};
                 if ( !src ) {
                     continue;
                 }
-
+                
                 var m = src.match( reHub );
                 if ( m ) {
                     var config = scripts[i].getAttribute( "oaaConfig" );
@@ -6298,7 +8370,7 @@ OpenAjax.gadgets.rpctx = OpenAjax.gadgets.rpctx || {};
                 }
             }
         }
-
+        
         if (typeof oaaConfig !== 'undefined' && oaaConfig.gadgetsGlobal) {
             gadgets = OpenAjax.gadgets;
         }
@@ -6314,19 +8386,19 @@ if (!OpenAjax.hub.IframeContainer) {
  * Create a new Iframe Container.
  * @constructor
  * @extends OpenAjax.hub.Container
- *
+ * 
  * IframeContainer implements the Container interface to provide a container
  * that isolates client components into secure sandboxes by leveraging the
  * isolation features provided by browser iframes.
- *
+ * 
  * SECURITY
- *
+ * 
  * In order for the connection between the IframeContainer and IframeHubClient
  * to be fully secure, you must specify a valid 'tunnelURI'. Note that if you
  * do specify a 'tunnelURI', then only the WPM and NIX transports are used,
  * covering the following browsers:
  *   IE 6+, Firefox 3+, Safari 4+, Chrome 2+, Opera 9+.
- *
+ * 
  * If no 'tunnelURI' is specified, then some security features are disabled:
  * the IframeContainer will not report FramePhish errors, and on some browsers
  * IframeContainer and IframeHubClient will not be able to validate the
@@ -6335,13 +8407,13 @@ if (!OpenAjax.hub.IframeContainer) {
  * and FE transports -- in addition to the above browsers, the Hub code will
  * also work on:
  *   Firefox 1 & 2, Safari 2 & 3, Chrome 1.
- *
+ * 
  * @param {OpenAjax.hub.ManagedHub} hub
  *    Managed Hub instance to which this Container belongs
  * @param {String} clientID
  *    A string ID that identifies a particular client of a Managed Hub. Unique
  *    within the context of the ManagedHub.
- * @param {Object} params
+ * @param {Object} params  
  *    Parameters used to instantiate the IframeContainer.
  *    Once the constructor is called, the params object belongs exclusively to
  *    the IframeContainer. The caller MUST not modify it.
@@ -6361,7 +8433,7 @@ if (!OpenAjax.hub.IframeContainer) {
  *    provided, default is window.
  * @param {Function} [params.Container.log]
  *    Optional logger function. Would be used to log to console.log or
- *    equivalent.
+ *    equivalent. 
  * @param {Object} params.IframeContainer.parent
  *    DOM element that is to be parent of iframe
  * @param {String} params.IframeContainer.uri
@@ -6404,7 +8476,7 @@ if (!OpenAjax.hub.IframeContainer) {
 OpenAjax.hub.IframeContainer = function( hub, clientID, params )
 {
     assertValidParams( arguments );
-
+    
     var container = this;
     var scope = params.Container.scope || window;
     var connected = false;
@@ -6425,17 +8497,17 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
     } else {
         log = function() {};
     }
-
-
+    
+    
     this._init = function() {
         // add to ManagedHub first, to see if clientID is a duplicate
         hub.addContainer( this );
-
+        
         // Create an "internal" ID, which is guaranteed to be unique within the
         // window, not just within the hub.
         internalID = OpenAjax.hub.IframeContainer._rpcRouter.add( clientID, this );
         securityToken = generateSecurityToken( params, scope, log );
-
+        
         var relay = params.IframeContainer.clientRelay;
         var transportName = OpenAjax.gadgets.rpc.getRelayChannel();
         if ( params.IframeContainer.tunnelURI ) {
@@ -6445,21 +8517,21 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
         } else {
             log( "WARNING: Parameter 'IframeContaienr.tunnelURI' not specified. Connection will not be fully secure." );
             if ( transportName === "rmr" && !relay ) {
-                relay = OpenAjax.gadgets.rpc.getOrigin( params.IframeContainer.uri ) + "/robots.txt";
+                relay = OpenAjax.gadgets.rpc.getOrigin( params.IframeContainer.uri ) + "/robots.txt"; 
             }
         }
-
+        
         // Create IFRAME to hold the client
         createIframe();
-
+        
         OpenAjax.gadgets.rpc.setupReceiver( internalID, relay );
-
+        
         startLoadTimer();
     };
 
-
+        
   /*** OpenAjax.hub.Container interface ***/
-
+   
     this.sendToClient = function( topic, data, subscriptionID ) {
         OpenAjax.gadgets.rpc.call( internalID, "openajax.pubsub", null, "pub", topic, data,
                                    subscriptionID );
@@ -6477,7 +8549,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
     this.isConnected = function() {
         return connected;
     };
-
+    
     this.getClientID = function() {
         return clientID;
     };
@@ -6492,38 +8564,38 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
         }
         return null;
     };
-
+    
     this.getParameters = function() {
         return params;
     };
-
+    
     this.getHub = function() {
         return hub;
     };
-
-
+    
+    
   /*** OpenAjax.hub.IframeContainer interface ***/
-
+    
     /**
      * Get the iframe associated with this iframe container
-     *
+     * 
      * This function returns the iframe associated with an IframeContainer,
      * allowing the Manager Application to change its size, styles, scrollbars, etc.
-     *
+     * 
      * CAUTION: The iframe is owned exclusively by the IframeContainer. The Manager
      * Application MUST NOT destroy the iframe directly. Also, if the iframe is
      * hidden and disconnected, the Manager Application SHOULD NOT attempt to make
      * it visible. The Container SHOULD automatically hide the iframe when it is
-     * disconnected; to make it visible would introduce security risks.
-     *
+     * disconnected; to make it visible would introduce security risks. 
+     * 
      * @returns iframeElement
      * @type {Object}
      */
     this.getIframe = function() {
         return document.getElementById( internalID );
     };
-
-
+    
+    
   /*** private functions ***/
 
     function assertValidParams( args ) {
@@ -6536,7 +8608,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
             throw new Error( OpenAjax.hub.Error.BadParameters );
         }
     }
-
+    
     this._handleIncomingRPC = function( command, topic, data ) {
         switch ( command ) {
             // publish
@@ -6544,7 +8616,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
             case "pub":
                 hub.publishForClient( container, topic, data );
                 break;
-
+            
             // subscribe
             // 'data' is subscription ID
             case "sub":
@@ -6555,7 +8627,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
                     errCode = e.message;
                 }
                 return errCode;
-
+            
             // unsubscribe
             // 'data' is subscription ID
             case "uns":
@@ -6563,12 +8635,12 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
                 hub.unsubscribeForClient( container, handle );
                 delete subs[ data ];
                 return data;
-
+            
             // connect
             case "con":
                 finishConnect();
                 return true;
-
+            
             // disconnect
             case "dis":
                 startLoadTimer();
@@ -6584,11 +8656,11 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
                 return true;
         }
     };
-
+    
     this._onSecurityAlert = function( error ) {
         invokeSecurityAlert( rpcErrorsToOAA[ error ] );
     };
-
+    
     // The RPC code requires that the 'name' attribute be properly set on the
     // iframe.  However, setting the 'name' property on the iframe object
     // returned from 'createElement("iframe")' doesn't work on IE --
@@ -6598,10 +8670,10 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
     function createIframe() {
         var span = document.createElement( "span" );
         params.IframeContainer.parent.appendChild( span );
-
+        
         var iframeText = '<iframe id="' + internalID + '" name="' + internalID +
                 '" src="javascript:\'<html></html>\'"';
-
+        
         // Add iframe attributes
         var styleText = '';
         var attrs = params.IframeContainer.iframeAttrs;
@@ -6621,13 +8693,13 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
                 }
             }
         }
-
+        
         // initially hide IFRAME content, in order to lessen frame phishing impact
         styleText += 'visibility:hidden;';
         iframeText += ' style="' + styleText + '"></iframe>';
-
+        
         span.innerHTML = iframeText;
-
+        
         var tunnelText;
         if ( params.IframeContainer.tunnelURI ) {
             tunnelText = "&parent=" + encodeURIComponent( params.IframeContainer.tunnelURI ) +
@@ -6643,7 +8715,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
         document.getElementById( internalID ).src = params.IframeContainer.uri +
                 "#rpctoken=" + securityToken + tunnelText + idText;
     }
-
+    
     // If the relay iframe used by RPC has not been loaded yet, then we won't have unload protection
     // at this point.  Since we can't detect when the relay iframe has loaded, we use a two stage
     // connection process.  First, the child sends a connection msg and the container sends an ack.
@@ -6669,12 +8741,12 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
         }
         OpenAjax.gadgets.rpc.call( internalID, "openajax.pubsub", callback, "cmd", "con" );
     }
-
+    
     function finishDisconnect() {
         if ( connected ) {
             connected = false;
             document.getElementById( internalID ).style.visibility = "hidden";
-
+        
             // unsubscribe from all subs
             for ( var s in subs ) {
                 hub.unsubscribeForClient( container, subs[s] );
@@ -6682,7 +8754,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
             subs = {};
         }
     }
-
+    
     function invokeSecurityAlert( errorMsg ) {
         try {
             params.Container.onSecurityAlert.call( scope, container, errorMsg );
@@ -6691,7 +8763,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
             log( "caught error from onSecurityAlert callback to constructor: " + e.message );
         }
     }
-
+    
     function startLoadTimer() {
         loadTimer = setTimeout(
             function() {
@@ -6703,8 +8775,8 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
             timeout
         );
     }
-
-
+    
+    
     this._init();
 };
 
@@ -6714,7 +8786,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
  * Create a new IframeHubClient.
  * @constructor
  * @extends OpenAjax.hub.HubClient
- *
+ * 
  * @param {Object} params
  *    Once the constructor is called, the params object belongs to the
  *    HubClient. The caller MUST not modify it.
@@ -6727,7 +8799,7 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
  *     If not provided, the default is window.
  * @param {Function} [params.HubClient.log]
  *     Optional logger function. Would be used to log to console.log or
- *     equivalent.
+ *     equivalent. 
  * @param {Boolean} [params.IframeHubClient.requireParentVerifiable]
  *     Set to true in order to require that this IframeHubClient use a
  *     transport that can verify the parent Container's identity.
@@ -6740,9 +8812,9 @@ OpenAjax.hub.IframeContainer = function( hub, clientID, params )
  *     Length of the security tokens used when transmitting messages.  If
  *     not specified, defaults to 6.  An implementation of IframeHubClient
  *     may choose to ignore this value.
- *
+ *     
  * @throws {OpenAjax.hub.Error.BadParameters} if any of the required
- *          parameters is missing, or if a parameter value is invalid in
+ *          parameters is missing, or if a parameter value is invalid in 
  *          some way.
  */
 OpenAjax.hub.IframeHubClient = function( params )
@@ -6750,7 +8822,7 @@ OpenAjax.hub.IframeHubClient = function( params )
     if ( ! params || ! params.HubClient || ! params.HubClient.onSecurityAlert ) {
         throw new Error( OpenAjax.hub.Error.BadParameters );
     }
-
+    
     var client = this;
     var scope = params.HubClient.scope || window;
     var connected = false;
@@ -6758,7 +8830,7 @@ OpenAjax.hub.IframeHubClient = function( params )
     var subIndex = 0;
     var clientID;
 //    var securityToken;    // XXX still need "securityToken"?
-
+    
     if ( params.HubClient.log ) {
         var log = function( msg ) {
             try {
@@ -6770,7 +8842,7 @@ OpenAjax.hub.IframeHubClient = function( params )
     } else {
         log = function() {};
     }
-
+    
     this._init = function() {
         var urlParams = OpenAjax.gadgets.util.getUrlParameters();
         if ( ! urlParams.parent ) {
@@ -6780,7 +8852,7 @@ OpenAjax.hub.IframeHubClient = function( params )
             var parent = urlParams.oahParent + "/robots.txt";
             OpenAjax.gadgets.rpc.setupReceiver( "..", parent );
         }
-
+        
         if ( params.IframeHubClient && params.IframeHubClient.requireParentVerifiable &&
              OpenAjax.gadgets.rpc.getReceiverOrigin( ".." ) === null ) {
             // If user set 'requireParentVerifiable' to true but RPC transport does not
@@ -6788,7 +8860,7 @@ OpenAjax.hub.IframeHubClient = function( params )
             OpenAjax.gadgets.rpc.removeReceiver( ".." );
             throw new Error( OpenAjax.hub.Error.IncompatBrowser );
         }
-
+        
         OpenAjax.hub.IframeContainer._rpcRouter.add( "..", this );
 // XXX The RPC layer initializes immediately on load, in the child (IframeHubClient). So it is too
 //    late here to specify a security token for the RPC layer.  At the moment, only the NIX
@@ -6800,14 +8872,14 @@ OpenAjax.hub.IframeHubClient = function( params )
             clientID = clientID.substring( 0, clientID.lastIndexOf('_') );
         }
     };
-
+    
   /*** HubClient interface ***/
 
     this.connect = function( onComplete, scope ) {
         if ( connected ) {
             throw new Error( OpenAjax.hub.Error.Duplicate );
         }
-
+        
         // connect acknowledgement
         function callback( result ) {
             if ( result ) {
@@ -6824,14 +8896,14 @@ OpenAjax.hub.IframeHubClient = function( params )
         }
         OpenAjax.gadgets.rpc.call( "..", "openajax.pubsub", callback, "con" );
     };
-
+    
     this.disconnect = function( onComplete, scope ) {
         if ( !connected ) {
             throw new Error( OpenAjax.hub.Error.Disconnected );
         }
-
+        
         connected = false;
-
+        
         // disconnect acknowledgement
         var callback = null;
         if ( onComplete ) {
@@ -6846,7 +8918,7 @@ OpenAjax.hub.IframeHubClient = function( params )
         }
         OpenAjax.gadgets.rpc.call( "..", "openajax.pubsub", callback, "dis" );
     };
-
+    
     this.getPartnerOrigin = function() {
         if ( connected ) {
             var origin = OpenAjax.gadgets.rpc.getReceiverOrigin( ".." );
@@ -6857,24 +8929,24 @@ OpenAjax.hub.IframeHubClient = function( params )
         }
         return null;
     };
-
+    
     this.getClientID = function() {
         return clientID;
     };
-
+    
   /*** Hub interface ***/
-
+    
     this.subscribe = function( topic, onData, scope, onComplete, subscriberData ) {
         assertConn();
         assertSubTopic( topic );
         if ( ! onData ) {
             throw new Error( OpenAjax.hub.Error.BadParameters );
         }
-
+    
         scope = scope || window;
         var subID = "" + subIndex++;
         subs[ subID ] = { cb: onData, sc: scope, d: subscriberData };
-
+        
         // subscribe acknowledgement
         function callback( result ) {
             if ( result !== '' ) {    // error
@@ -6890,30 +8962,30 @@ OpenAjax.hub.IframeHubClient = function( params )
             }
         }
         OpenAjax.gadgets.rpc.call( "..", "openajax.pubsub", callback, "sub", topic, subID );
-
+        
         return subID;
     };
-
+    
     this.publish = function( topic, data ) {
         assertConn();
         assertPubTopic( topic );
         OpenAjax.gadgets.rpc.call( "..", "openajax.pubsub", null, "pub", topic, data );
     };
-
+    
     this.unsubscribe = function( subscriptionID, onComplete, scope ) {
         assertConn();
         if ( ! subscriptionID ) {
             throw new Error( OpenAjax.hub.Error.BadParameters );
         }
-
+        
         // if no such subscriptionID, or in process of unsubscribing given ID, throw error
         if ( ! subs[ subscriptionID ] || subs[ subscriptionID ].uns ) {
             throw new Error( OpenAjax.hub.Error.NoSubscription );
         }
-
+        
         // unsubscribe in progress
         subs[ subscriptionID ].uns = true;
-
+        
         // unsubscribe acknowledgement
         function callback( result ) {
             delete subs[ subscriptionID ];
@@ -6928,15 +9000,15 @@ OpenAjax.hub.IframeHubClient = function( params )
         }
         OpenAjax.gadgets.rpc.call( "..", "openajax.pubsub", callback, "uns", null, subscriptionID );
     };
-
+    
     this.isConnected = function() {
         return connected;
     };
-
+    
     this.getScope = function() {
         return scope;
     };
-
+    
     this.getSubscriberData = function( subscriptionID ) {
         assertConn();
         if ( subs[ subscriptionID ] ) {
@@ -6944,7 +9016,7 @@ OpenAjax.hub.IframeHubClient = function( params )
         }
         throw new Error( OpenAjax.hub.Error.NoSubscription );
     };
-
+    
     this.getSubscriberScope = function( subscriptionID ) {
         assertConn();
         if ( subs[ subscriptionID ] ) {
@@ -6952,13 +9024,13 @@ OpenAjax.hub.IframeHubClient = function( params )
         }
         throw new Error( OpenAjax.hub.Error.NoSubscription );
     };
-
+    
     this.getParameters = function() {
         return params;
     };
-
+    
   /*** private functions ***/
-
+    
     this._handleIncomingRPC = function( command, topic, data, subscriptionID ) {
         if ( command === "pub" ) {
             // if subscription exists and we are not in process of unsubscribing...
@@ -6973,7 +9045,7 @@ OpenAjax.hub.IframeHubClient = function( params )
             }
         }
         // else if command === "cmd"...
-
+        
         // First time this function is called, topic should be "con".  This is the 2nd stage of the
         // connection process.  Simply need to return "true" in order to send an acknowledgement
         // back to container.  See finishConnect() in the container object.
@@ -6982,13 +9054,13 @@ OpenAjax.hub.IframeHubClient = function( params )
         }
         return false;
     };
-
+    
     function assertConn() {
         if ( ! connected ) {
             throw new Error( OpenAjax.hub.Error.Disconnected );
         }
     }
-
+    
     function assertSubTopic( topic )
     {
         if ( ! topic ) {
@@ -7007,7 +9079,7 @@ OpenAjax.hub.IframeHubClient = function( params )
             }
         }
     }
-
+    
     function assertPubTopic( topic ) {
         if ( !topic || topic === "" || (topic.indexOf("*") != -1) ||
             (topic.indexOf("..") != -1) ||  (topic.charAt(0) == ".") ||
@@ -7016,7 +9088,7 @@ OpenAjax.hub.IframeHubClient = function( params )
             throw new Error( OpenAjax.hub.Error.BadParameters );
         }
     }
-
+    
 //    function invokeSecurityAlert( errorMsg ) {
 //        try {
 //            params.HubClient.onSecurityAlert.call( scope, client, errorMsg );
@@ -7026,7 +9098,7 @@ OpenAjax.hub.IframeHubClient = function( params )
 //        }
 //    }
 
-
+    
     this._init();
 };
 
@@ -7040,21 +9112,21 @@ OpenAjax.hub.IframeHubClient = function( params )
     //   t: The authentication token.
 OpenAjax.hub.IframeContainer._rpcRouter = function() {
     var receivers = {};
-
+    
     function router() {
         var r = receivers[ this.f ];
         if ( r ) {
             return r._handleIncomingRPC.apply( r, arguments );
         }
     }
-
+    
     function onSecurityAlert( receiverId, error ) {
         var r = receivers[ receiverId ];
         if ( r ) {
           r._onSecurityAlert.call( r, error );
         }
     }
-
+    
     return {
         add: function( id, receiver ) {
             function _add( id, receiver ) {
@@ -7064,7 +9136,7 @@ OpenAjax.hub.IframeContainer._rpcRouter = function() {
                     }
                     return;
                 }
-
+                
                 var newId = id;
                 while ( document.getElementById(newId) ) {
                     // a client with the specified ID already exists on this page;
@@ -7074,7 +9146,7 @@ OpenAjax.hub.IframeContainer._rpcRouter = function() {
                 receivers[ newId ] = receiver;
                 return newId;
             }
-
+            
             // when this function is first called, register the RPC service
             OpenAjax.gadgets.rpc.register( "openajax.pubsub", router );
             OpenAjax.gadgets.rpc.config({
@@ -7084,11 +9156,11 @@ OpenAjax.hub.IframeContainer._rpcRouter = function() {
             rpcErrorsToOAA[ OpenAjax.gadgets.rpc.SEC_ERROR_LOAD_TIMEOUT ] = OpenAjax.hub.SecurityAlert.LoadTimeout;
             rpcErrorsToOAA[ OpenAjax.gadgets.rpc.SEC_ERROR_FRAME_PHISH ] = OpenAjax.hub.SecurityAlert.FramePhish;
             rpcErrorsToOAA[ OpenAjax.gadgets.rpc.SEC_ERROR_FORGED_MSG ] = OpenAjax.hub.SecurityAlert.ForgedMsg;
-
+            
             this.add = _add;
             return _add( id, receiver );
         },
-
+        
         remove: function( id ) {
             delete receivers[ id ];
         }
@@ -7105,7 +9177,7 @@ function generateSecurityToken( params, scope, log ) {
         var seed = new Date().getTime() + Math.random() + document.cookie;
         OpenAjax.hub.IframeContainer._prng = OpenAjax._smash.crypto.newPRNG( seed );
     }
-
+    
     var p = params.IframeContainer || params.IframeHubClient;
     if ( p && p.seed ) {
         try {
@@ -7116,7 +9188,7 @@ function generateSecurityToken( params, scope, log ) {
             log( "caught error from 'seed' callback: " + e.message );
         }
     }
-
+    
     var tokenLength = (p && p.tokenLength) || 6;
     return OpenAjax.hub.IframeContainer._prng.nextRandomB64Str( tokenLength );
 }
@@ -7132,16 +9204,16 @@ return OpenAjax;
 
         Copyright 2006-2009 OpenAjax Alliance
 
-        Licensed under the Apache License, Version 2.0 (the "License");
-        you may not use this file except in compliance with the License.
+        Licensed under the Apache License, Version 2.0 (the "License"); 
+        you may not use this file except in compliance with the License. 
         You may obtain a copy of the License at
-
+        
                 http://www.apache.org/licenses/LICENSE-2.0
 
-        Unless required by applicable law or agreed to in writing, software
-        distributed under the License is distributed on an "AS IS" BASIS,
-        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-        See the License for the specific language governing permissions and
+        Unless required by applicable law or agreed to in writing, software 
+        distributed under the License is distributed on an "AS IS" BASIS, 
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+        See the License for the specific language governing permissions and 
         limitations under the License.
 */
 
@@ -7155,9 +9227,9 @@ define('OpenAjax/containers/iframe/crypto',[ 'OpenAjax/hub/hub'], function( Open
 //
 // - a message authentication code (MAC): HMAC-SHA-1 (RFC2104/2202)
 //     BigEndianWord[5] <- smash.crypto.hmac_sha1(
-//                            BigEndianWord[3-16] keyWA,
+//                            BigEndianWord[3-16] keyWA, 
 //                            Ascii or Unicode string dataS,
-//                   int chrsz (8 for Asci/16 for Unicode)
+//		 		 		       int chrsz (8 for Asci/16 for Unicode)
 //
 // - pseudo-random number generator (PRNG): HMAC-SHA-1 in counter mode, following
 //   Barak & Halevi, An architecture for robust pseudo-random generation and applications to /dev/random, CCS 2005
@@ -7166,7 +9238,7 @@ define('OpenAjax/containers/iframe/crypto',[ 'OpenAjax/hub/hub'], function( Open
 //     addSeed(String seed)
 //     BigEndianWord[len] <- nextRandomOctets(int len)
 //     Base64-String[len] <- nextRandomB64Str(int len)
-//   Note: HMAC-SHA1 in counter-mode does not provide forward-security on corruption.
+//   Note: HMAC-SHA1 in counter-mode does not provide forward-security on corruption. 
 //         However, the PRNG state is kept inside a closure. So if somebody can break the closure, he probably could
 //         break a whole lot more and forward-security of the prng is not the highest of concerns anymore :-)
 
@@ -7217,9 +9289,9 @@ OpenAjax._smash.crypto = {
 
     // constants
     var __refresh_keyWA = [ 0xA999, 0x3E36, 0x4706, 0x816A,
-                     0x2571, 0x7850, 0xC26C, 0x9CD0,
-                     0xBA3E, 0xD89D, 0x1233, 0x9525,
-                     0xff3C, 0x1A83, 0xD491, 0xFF15 ]; // some random key for refresh ...
+    		 		 		     0x2571, 0x7850, 0xC26C, 0x9CD0,
+    		 		 		     0xBA3E, 0xD89D, 0x1233, 0x9525,
+    		 		 		     0xff3C, 0x1A83, 0xD491, 0xFF15 ]; // some random key for refresh ...
 
     // internal state
     var _keyWA = []; // BigEndianWord[5]
@@ -7253,29 +9325,29 @@ OpenAjax._smash.crypto = {
 
       // Get an array of len random octets
       'nextRandomOctets' : /* BigEndianWord[len] <- */ function (/* int */ len) {
-     var randOctets = [];
-     while (len > 0) {
-       _cnt+=1;
-       var nextBlock = that.hmac_sha1(_keyWA, (_cnt).toString(16), 8);
-       for (i=0; (i < 20) & (len > 0); i++, len--) {
-         randOctets.push( (nextBlock[i>>2] >> (i % 4) ) % 256);
-       }
-       // Note: if len was not a multiple 20, some random octets are ignored here but who cares ..
-     }
-     return randOctets;
+		 var randOctets = [];
+		 while (len > 0) {
+		   _cnt+=1;
+		   var nextBlock = that.hmac_sha1(_keyWA, (_cnt).toString(16), 8);
+		   for (i=0; (i < 20) & (len > 0); i++, len--) {
+		     randOctets.push( (nextBlock[i>>2] >> (i % 4) ) % 256);
+		   }
+		   // Note: if len was not a multiple 20, some random octets are ignored here but who cares ..
+		 }
+		 return randOctets;
       },
 
 
       // Get a random string of Base64-like (see below) chars of length len
       // Note: there is a slightly non-standard Base64 with no padding and '-' and '_' for '+' and '/', respectively
       'nextRandomB64Str' : /* Base64-String <- */ function (/* int */ len) {
-     var b64StrMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+		 var b64StrMap = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-     var randOctets = this.nextRandomOctets(len);
-     var randB64Str = '';
-     for (var i=0; i < len; i++) {
-       randB64Str += b64StrMap.charAt(randOctets[i] & 0x3F);
-     }
+		 var randOctets = this.nextRandomOctets(len);
+		 var randB64Str = '';
+		 for (var i=0; i < len; i++) {
+		   randB64Str += b64StrMap.charAt(randOctets[i] & 0x3F);
+		 }
         return randB64Str;
       }
 
@@ -7318,7 +9390,7 @@ OpenAjax._smash.crypto = {
           /* (t < 80) */ -899497514 ;
     }
 
-    // main algorithm.
+    // main algorithm. 
     return function( /* BigEndianWord[*] */ dataWA, /* int */ lenInBits) {
 
       // Section 6.1.1: Preprocessing
@@ -7350,7 +9422,7 @@ OpenAjax._smash.crypto = {
         // 3. round-functions
         for(var j = 0; j < 80; j++)
         {
-           // postponed step 2
+      		 // postponed step 2
           W[j] = ( (j < 16) ? dataWA[i+j] : rol(W[j-3] ^ W[j-8] ^ W[j-14] ^ W[j-16], 1));
 
           var T = add_wa( add_wa( rol(a, 5), sha1_ft(j, b, c, d)),
@@ -7362,7 +9434,7 @@ OpenAjax._smash.crypto = {
           a = T;
         }
 
-     // 4. intermediate hash
+		 // 4. intermediate hash
         H0 = add_wa(a, H0);
         H1 = add_wa(b, H1);
         H2 = add_wa(c, H2);
@@ -7986,7 +10058,7 @@ OpenAjax.gadgets.util = function() {
 
     /**
      * Attach an event listener to given DOM element
-     *
+     * 
      * @param {object} elem  DOM element on which to attach event.
      * @param {string} eventName  Event type to listen for.
      * @param {function} callback  Invoked when specified event occurs.
@@ -8002,7 +10074,7 @@ OpenAjax.gadgets.util = function() {
 
     /**
      * Remove event listener
-     *
+     * 
      * @param {object} elem  DOM element from which to remove event.
      * @param {string} eventName  Event type to remove.
      * @param {function} callback  Listener to remove.
@@ -8055,7 +10127,7 @@ OpenAjax.gadgets.log = function(message) {
   OpenAjax.gadgets.log.logAtLevel(OpenAjax.gadgets.log.INFO, message);
 };
 
-
+ 
 /**
  * Log a warning
  */
@@ -8285,7 +10357,7 @@ OpenAjax.gadgets.rpctx.frameElement = function() {
     isParentVerifiable: function() {
       return false;
     },
-
+  
     init: function(processFn, readyFn) {
       // No global setup.
       process = processFn;
@@ -8322,7 +10394,7 @@ OpenAjax.gadgets.rpctx.frameElement = function() {
 
     call: function(targetId, from, rpc) {
       callFrameElement(targetId, from, rpc);
-    }
+    } 
 
   };
 }();
@@ -8624,7 +10696,7 @@ OpenAjax.gadgets.rpctx.rmr = function() {
   // rmr_channels['..'] while containers will have a channel
   // per gadget stored under the gadget's ID.
   var rmr_channels = {};
-
+  
   var process;
   var ready;
 
@@ -8747,7 +10819,7 @@ OpenAjax.gadgets.rpctx.rmr = function() {
       // of messages to the container ASAP.
       appendRmrFrame(channelFrame, relayUri, getRmrData(frameId));
     }
-
+     
     // Start searching for our own frame on the other page.
     conductRmrSearch(frameId);
   }
@@ -9165,7 +11237,7 @@ OpenAjax.gadgets.rpctx.wpm = function() {
   //
   function testPostMessage() {
     var hit = false;
-
+    
     function receiveMsg(event) {
       if (event.data == "postmessage.test") {
         hit = true;
@@ -9174,15 +11246,15 @@ OpenAjax.gadgets.rpctx.wpm = function() {
         }
       }
     }
-
+    
     OpenAjax.gadgets.util.attachBrowserEvent(window, "message", receiveMsg, false);
     window.postMessage("postmessage.test", "*");
-
+    
     // if 'hit' is true here, then postMessage is synchronous
     if (hit) {
       pmSync = true;
     }
-
+    
     OpenAjax.gadgets.util.removeBrowserEvent(window, "message", receiveMsg, false);
   }
 
@@ -9191,7 +11263,7 @@ OpenAjax.gadgets.rpctx.wpm = function() {
     if (!rpc || !rpc.f) {
       return;
     }
-
+    
     // for security, check origin against expected value
     var origRelay = OpenAjax.gadgets.rpc.getRelayUrl(rpc.f) ||
                     OpenAjax.gadgets.util.getUrlParameters()["parent"];
@@ -9229,7 +11301,7 @@ OpenAjax.gadgets.rpctx.wpm = function() {
           }, 0);
         };
       }
-
+ 
       // Set up native postMessage handler.
       OpenAjax.gadgets.util.attachBrowserEvent(window, 'message', onmessage, false);
 
@@ -9317,7 +11389,7 @@ define('OpenAjax/containers/iframe/rpc/rpc',[
  *
  * All transports are stored in object gadgets.rpctx, and are provided
  * to the core gadgets.rpc library by various build rules.
- *
+ * 
  * Transports used by core gadgets.rpc code to actually pass messages.
  * each transport implements the same interface exposing hooks that
  * the core library calls at strategic points to set up and use
@@ -9352,13 +11424,13 @@ if (!OpenAjax.gadgets.rpc) { // make lib resilient to double-inclusion
  */
 
 OpenAjax.gadgets.rpc = function() {
-  /**
+  /** 
    * @const
    * @private
    */
   var CALLBACK_NAME = '__cb';
 
-  /**
+  /** 
    * @const
    * @private
    */
@@ -9371,14 +11443,14 @@ OpenAjax.gadgets.rpc = function() {
    */
   var ACK = '__ack';
 
-  /**
+  /** 
    * Timeout and number of attempts made to setup a transport receiver.
    * @const
    * @private
    */
   var SETUP_FRAME_TIMEOUT = 500;
 
-  /**
+  /** 
    * @const
    * @private
    */
@@ -9499,7 +11571,7 @@ OpenAjax.gadgets.rpc = function() {
   // See: http://webkit.org/blog/516/webkit-page-cache-ii-the-unload-event/
   var mainPageUnloading = false,
       hookedUnload = false;
-
+  
   function hookMainPageUnload() {
     if ( hookedUnload ) {
       return;
@@ -9517,7 +11589,7 @@ OpenAjax.gadgets.rpc = function() {
       OpenAjax.gadgets.error("Invalid auth token. " + authToken[sourceId] + " vs " + token);
       securityCallback(sourceId, FORGED_MSG);
     }
-
+    
     relayWindow.onunload = function() {
       if (setup[sourceId] && !mainPageUnloading) {
         securityCallback(sourceId, FRAME_PHISH);
@@ -9525,7 +11597,7 @@ OpenAjax.gadgets.rpc = function() {
       }
     };
     hookMainPageUnload();
-
+    
     data = OpenAjax.gadgets.json.parse(decodeURIComponent(data));
     transport.relayOnload(sourceId, data);
   }
@@ -9658,13 +11730,13 @@ OpenAjax.gadgets.rpc = function() {
 
     // Cast to a String to avoid an index lookup.
     id = String(id);
-
+    
     // Try window.frames first
     var target = window.frames[id];
     if (target) {
       return target;
     }
-
+    
     // Fall back to getElementById()
     target = document.getElementById(id);
     if (target && target.contentWindow) {
@@ -9973,7 +12045,7 @@ OpenAjax.gadgets.rpc = function() {
         securityCallback = config.securityCallback;
       }
     },
-
+    
     /**
      * Registers an RPC service.
      * @param {string} serviceName Service name to register.
@@ -10137,7 +12209,7 @@ OpenAjax.gadgets.rpc = function() {
           url = document.location.protocol + '//' + document.location.host + url;
         }
       }
-
+      
       return url;
     },
 
@@ -10145,7 +12217,7 @@ OpenAjax.gadgets.rpc = function() {
     setAuthToken: setAuthToken,
     setupReceiver: setupReceiver,
     getAuthToken: getAuthToken,
-
+    
     // Note: Does not delete iframe
     removeReceiver: function(receiverId) {
       delete relayUrl[receiverId];
@@ -10237,17 +12309,17 @@ OpenAjax.gadgets.rpc = function() {
     /** Returns the window keyed by the ID. null/".." for parent, else child */
     _getTargetWin: getTargetWin,
 
-    /** Create an iframe for loading the relay URL. Used by child only. */
+    /** Create an iframe for loading the relay URL. Used by child only. */ 
     _createRelayIframe: function(token, data) {
       var relay = OpenAjax.gadgets.rpc.getRelayUrl('..');
       if (!relay) {
         return;
       }
-
+      
       // Format: #targetId & sourceId & authToken & data
       var src = relay + '#..&' + rpcId + '&' + token + '&' +
           encodeURIComponent(OpenAjax.gadgets.json.stringify(data));
-
+  
       var iframe = document.createElement('iframe');
       iframe.style.border = iframe.style.width = iframe.style.height = '0px';
       iframe.style.visibility = 'hidden';
@@ -10256,7 +12328,7 @@ OpenAjax.gadgets.rpc = function() {
       function appendFn() {
         // Append the iframe.
         document.body.appendChild(iframe);
-
+  
         // Set the src of the iframe to 'about:blank' first and then set it
         // to the relay URI. This prevents the iframe from maintaining a src
         // to the 'old' relay URI if the page is returned to from another.
@@ -10265,20 +12337,20 @@ OpenAjax.gadgets.rpc = function() {
         iframe.src = 'javascript:"<html></html>"';
         iframe.src = src;
       }
-
+      
       if (document.body) {
         appendFn();
       } else {
         OpenAjax.gadgets.util.registerOnLoadHandler(function() { appendFn(); });
       }
-
+      
       return iframe;
     },
 
     ACK: ACK,
 
     RPC_ID: rpcId,
-
+    
     SEC_ERROR_LOAD_TIMEOUT: LOAD_TIMEOUT,
     SEC_ERROR_FRAME_PHISH: FRAME_PHISH,
     SEC_ERROR_FORGED_MSG : FORGED_MSG
@@ -10294,102 +12366,103 @@ return OpenAjax;
 });
 
 define('OpenAjax',[
-  'OpenAjax/hub/hub',
-  'OpenAjax/containers/inline/inline',
-  'OpenAjax/containers/iframe/iframe',
-  'OpenAjax/containers/iframe/crypto',
-  'OpenAjax/containers/iframe/json2',
-  'OpenAjax/containers/iframe/rpc/rpc-dependencies',
-  'OpenAjax/containers/iframe/rpc/fe.transport',
-  'OpenAjax/containers/iframe/rpc/ifpc.transport',
-  'OpenAjax/containers/iframe/rpc/rmr.transport',
-  'OpenAjax/containers/iframe/rpc/wpm.transport',
-  'OpenAjax/containers/iframe/rpc/rpc'
+	'OpenAjax/hub/hub',
+	'OpenAjax/containers/inline/inline',
+	'OpenAjax/containers/iframe/iframe',
+	'OpenAjax/containers/iframe/crypto',
+	'OpenAjax/containers/iframe/json2',
+	'OpenAjax/containers/iframe/rpc/rpc-dependencies',
+	'OpenAjax/containers/iframe/rpc/fe.transport',
+	'OpenAjax/containers/iframe/rpc/ifpc.transport',
+	'OpenAjax/containers/iframe/rpc/rmr.transport',
+	'OpenAjax/containers/iframe/rpc/wpm.transport',
+	'OpenAjax/containers/iframe/rpc/rpc'
 ], function( OpenAjax ){
-  return OpenAjax;
+	return OpenAjax;
 });
 
 define('scripts/core/open-ajax/open-ajax',[
-  //'lib/openajax/release/all/OpenAjaxManagedHub-all'
-  'OpenAjax'
+	//'lib/openajax/release/all/OpenAjaxManagedHub-all'
+	'OpenAjax'
 ], function( OpenAjax) {
 
-  //window.OpenAjax = OpenAjax;
-  return OpenAjax;
+	//window.OpenAjax = OpenAjax;
+	return OpenAjax;
 });
 define( 'scripts/core/hub/hub',['scripts/core/open-ajax/open-ajax'], function(){
 
-    var AnywareHub = (function() {
+	var AnywareHub = (function() {
 
-        var instance;
+		var instance;
 
-        function initialize() {
+		function initialize() {
 
-            //---- Private Scope ---------------------
-            var eventChannel = "anyware";
+			//---- Private Scope ---------------------
+			var eventChannel = "anyware";
 
-            var getTopic = function( event ){
-                return eventChannel + '.' + event;
-            };
+			var getTopic = function( event ){
+				return eventChannel + '.' + event;
+			};
 
-            var onHub = function() {
-                return true;
-            };
+			var onHub = function() {
+				return true;
+			};
 
-            var onHubSecurityAlert = function( /* source, alertType */ ) {
+			var onHubSecurityAlert = function( /* source, alertType */ ) {
 
-            };
+			};
 
-            var hub = new OpenAjax.hub.ManagedHub({
-                onPublish :         onHub,
-                onSubscribe :       onHub,
-                onUnsubscribe :     onHub,
-                onSecurityAlert :   onHubSecurityAlert
-            });
+			var hub = new OpenAjax.hub.ManagedHub({
+				onPublish :         onHub,
+				onSubscribe :       onHub,
+				onUnsubscribe :     onHub,
+				onSecurityAlert :   onHubSecurityAlert
+			});
 
-      //---- Public Scope ---------------------
-            return {
+			//---- Public Scope ---------------------
+			return {
 
-                subscribe : function( eventName, callback ){
-                    return hub.subscribe( getTopic( eventName ), callback );
-                },
+				subscribe : function( eventName, callback ){
+					return hub.subscribe( getTopic( eventName ), callback );
+				},
 
-                unsubscribe : function( subscription ){
-                    return hub.unsubscribe( subscription );
-                },
+				unsubscribe : function( subscription ){
+					return hub.unsubscribe( subscription );
+				},
 
-                publish : function( event, data ){
-                    return hub.publish( getTopic( event ), data );
-                },
+				publish : function( event, data ){
+					return hub.publish( getTopic( event ), data );
+				},
 
-        getMessageHub : function(){
-          return hub;
-        },
+				getMessageHub : function(){
+					return hub;
+				},
 
-        removeContainer: function( container ) {
-          return hub.removeContainer( container );
-        }
-            };
-        }
+				removeContainer: function( container ) {
+					return hub.removeContainer( container );
+				}
+			};
+		}
 
-        return {
+		return {
 
-            getInstance : function(){
-                if( !instance ) {
-                    instance = initialize();
-          window.Adobe = window.Adobe || {};
-          window.Adobe.Anyware = window.Adobe.Anyware || {};
-          window.Adobe.Anyware.Hub = instance;
-                }
+			getInstance : function(){
+				if( !instance ) {
+					instance = initialize();
+				}
 
-                return instance;
-            }
-        };
+				window.Adobe = window.Adobe || {};
+				window.Adobe.Anyware = window.Adobe.Anyware || {};
+				window.Adobe.Anyware.Hub = instance;
 
-    }());
+				return instance;
+			}
+		};
+
+	}());
 
 
-    return AnywareHub;
+	return AnywareHub;
 
 });
 
@@ -10397,1064 +12470,1010 @@ define( 'scripts/core/hub/hub',['scripts/core/open-ajax/open-ajax'], function(){
 
 define( 'scripts/core/container/container',['jquery', 'scripts/core/hub/hub'] ,function( $, Hub ){
 
-  var Container = function( componentName, element, clientUrl, pathToRelay, iframeAttrs, timeout ){
+	var Container = function( componentName, element, clientUrl, pathToRelay, iframeAttrs, timeout ){
 
-    this.init( componentName, element, clientUrl, pathToRelay, iframeAttrs, timeout );
+		this.init( componentName, element, clientUrl, pathToRelay, iframeAttrs, timeout );
 
-  };
+	};
 
-  Container.prototype = {
+	Container.prototype = {
 
-    hub : Hub.getInstance(),
+		hub : Hub.getInstance(),
 
-    container : null,
+		container : null,
 
-    init: function( name, elem, clientUrl, relayPath, attrs, timeout ){
+		init: function( name, elem, clientUrl, relayPath, attrs, timeout ){
 
-      var iframeAttrs;
+			var iframeAttrs;
 
-      this.checkRequiredParams( name, elem, clientUrl );
+			this.checkRequiredParams( name, elem, clientUrl );
 
-      iframeAttrs = attrs || {
-        'class': 'anyware-iframe',
-        'style': { border: "none", width:"100%", height:"100%", overflow:"hidden", scroll:"no" },
-        'allowTransparency': true,
-        'frameborder': 0
-      };
+			iframeAttrs = {
+				'class': 'anyware-iframe',
+				'style': { border: "none", width:"100%", height:"100%", overflow:"hidden", scroll:"no" },
+				'allowTransparency': true,
+				'frameborder': 0
+			};
+			$.extend( true, iframeAttrs, attrs);
 
-      this.componentName = name;
-      this.componentId = this.createComponentId( name );
-      this.element = elem;
-      this.clientUrl = clientUrl;
-      this.tunnelUrl = this.getTunnelUrl( relayPath );
-      this.iframeAttrs = iframeAttrs;
-      this.timeout = timeout || 15000;
-    },
+			this.componentName = name;
+			this.componentId = this.createComponentId( name );
+			this.element = elem;
+			this.clientUrl = clientUrl;
+			this.tunnelUrl = this.getTunnelUrl( relayPath );
+			this.iframeAttrs = iframeAttrs;
+			this.timeout = timeout || 15000;
+		},
 
-    checkRequiredParams : function( name, elem, clientUrl  ) {
-      if( !name || !elem || !clientUrl ){
-        throw new Error( 'Expect element, clientUrl and handlers to be passed to constructor.');
-      }
-    },
+		checkRequiredParams : function( name, elem, clientUrl  ) {
+			if( !name || !elem || !clientUrl ){
+				throw new Error( 'Expect element, clientUrl and handlers to be passed to constructor.');
+			}
+		},
 
-    loadComponent : function( callback ){
+		loadComponent : function( callback ){
 
-      var hub = this.hub.getMessageHub(),
-        self = this;
+			var hub = this.hub.getMessageHub(),
+				self = this;
 
-      this.container = ( new OpenAjax.hub.IframeContainer( hub, this.componentId,{
-        Container : {
-          onSecurityAlert: function( container, alertType ){
-            if( container === self.container ) {
-              $(self.element).trigger( 'errorEvent', { errorType: self.getSecurityErrorType( alertType ), errors: alertType });
-            }
-          },
-          onConnect: function(){
-            self.readyHandler = self.setUpReadyHandler( callback );
-          },
-          onDisconnect: function(){
+			this.container = ( new OpenAjax.hub.IframeContainer( hub, this.componentId,{
+				Container : {
+					onSecurityAlert: function( container, alertType ){
+						if( container === self.container ) {
+							$(self.element).trigger( 'errorEvent', { errorType: self.getSecurityErrorType( alertType ), errors: alertType });
+						}
+					},
+					onConnect: function(){
+						self.readyHandler = self.setUpReadyHandler( callback );
+					},
+					onDisconnect: function(){
 
-          }
-        },
-        IframeContainer : {
-          parent : this.element,
-          iframeAttrs : this.iframeAttrs,
-          uri : this.clientUrl,
-          tunnelURI : this.tunnelUrl,
-          timeout : this.timeout
-        }
-      }));
-    },
+					}
+				},
+				IframeContainer : {
+					parent : this.element,
+					iframeAttrs : this.iframeAttrs,
+					uri : this.clientUrl,
+					tunnelURI : this.tunnelUrl,
+					timeout : this.timeout
+				}
+			}));
+		},
 
-    unloadComponent : function(){
-      this.hub.removeContainer( this.container );
-      this.container = null;
-    },
+		unloadComponent : function(){
+			this.hub.removeContainer( this.container );
+			this.container = null;
+		},
 
-    isConnected : function(){
-      var connected = false;
-      if( this.container ){
-        connected = this.container.isConnected();
-      }
-      return connected;
-    },
+		isConnected : function(){
+			var connected = false;
+			if( this.container ){
+				connected = this.container.isConnected(); 
+			}
+			return connected;
+		},
 
-    subscribe : function( event, handler ){
-      return this.hub.subscribe( this.getTopic( event ), handler );
-    },
+		subscribe : function( event, handler ){
+			return this.hub.subscribe( this.getTopic( event ), handler );
+		},
 
-    unsubscribe : function( subscription ){
-      this.hub.unsubscribe( subscription );
-    },
+		unsubscribe : function( subscription ){
+			this.hub.unsubscribe( subscription );
+		},
 
-    publish: function( event, data ){
-      this.hub.publish( this.getTopic( event ), data );
-    },
+		publish: function( event, data ){
+			this.hub.publish( this.getTopic( event ), data );
+		},
 
-    getComponentId: function(){
-      return this.container.getClientID();
-    },
+		getComponentId: function(){
+			return this.container.getClientID();
+		},
 
-    getComponentName: function(){
-      return this.componentName;
-    },
+		getComponentName: function(){
+			return this.componentName;
+		},
 
-    createComponentId: function( componentName ){
-      var uid = Math.floor( Math.random() * 10000 );
-      return componentName + '.' + uid;
-    },
+		createComponentId: function( componentName ){
+			var uid = Math.floor( Math.random() * 10000 );
+			return componentName + '.' + uid;
+		},
 
-    getSecurityErrorType: function( type ){
-      switch( type ){
-        case OpenAjax.hub.SecurityAlert.LoadTimeout:
-          type = 'APPLICATION_LOAD_FAILURE';
-          break;
+		getSecurityErrorType: function( type ){
+			switch( type ){
+				case OpenAjax.hub.SecurityAlert.LoadTimeout:
+					type = 'APPLICATION_LOAD_FAILURE';
+					break;
 
-        default:
-          type = 'CROSS_DOMAIN_SECURITY_ERROR';
-      }
+				default:
+					type = 'CROSS_DOMAIN_SECURITY_ERROR';
+			}
 
-      return type;
-    },
+			return type;
+		},
 
-    setUpReadyHandler: function( readyCallback ){
-      var self = this;
-      return this.subscribe( 'applicationReady', function( event ){
-        readyCallback.apply();
-        self.removeReadyHandler();
-      });
-    },
+		setUpReadyHandler: function( readyCallback ){
+			var self = this;
+			return this.subscribe( 'applicationReady', function( event ){
+				readyCallback.apply();
+				self.removeReadyHandler();
+			});
+		},
 
-    removeReadyHandler: function(){
-      if( this.readyHandler ){
-        this.unsubscribe( this.readyHandler );
-        this.readyHandler = null;
-      }
-    },
+		removeReadyHandler: function(){
+			if( this.readyHandler ){
+				this.unsubscribe( this.readyHandler );
+				this.readyHandler = null;
+			}
+		},
 
-    getTopic: function( event ){
-      return this.componentId + '.' + event;
-    },
+		getTopic: function( event ){
+			return this.componentId + '.' + event;
+		},
 
-    getTunnelUrl : function( pathToRelay ){
+		getTunnelUrl : function( pathToRelay ){
 
-      var path,
-        rootPath,
-        fileName = 'rpc_relay.html',
-        hostDomain = location.host,
-        protocol = location.protocol;
+			var path,
+				rootPath,
+				fileName = 'rpc_relay.html',
+				hostDomain = location.host,
+				protocol = location.protocol;
 
-      if( pathToRelay ) {
-        path = pathToRelay;
-      }
-      else {
-        rootPath = window.location.pathname;
-        path = rootPath.substring( 0, rootPath.lastIndexOf('/')+1 ) + fileName;
-      }
+			if( pathToRelay ) {
+				path = pathToRelay;
+			}
+			else {
+				rootPath = window.location.pathname;
+				path = rootPath.substring( 0, rootPath.lastIndexOf('/')+1 ) + fileName;
+			}
 
-      return ( protocol + "//" + hostDomain + path );
-    }
+			return ( protocol + "//" + hostDomain + path );
+		}
 
-  };
+	};
 
-  return Container;
+	return Container;
 });
-/*!
-* CanJS - 1.1.5 (2013-03-27)
-* http://canjs.us/
-* Copyright (c) 2013 Bitovi
-* Licensed MIT
-*/
-define('can-proxy',['can/util/library', 'can/construct'], function (can, Construct) {
-    var isFunction = can.isFunction,
-        isArray = can.isArray,
-        makeArray = can.makeArray,
-
-        proxy = function (funcs) {
-
-            //args that should be curried
-            var args = makeArray(arguments),
-                self;
-
-            // get the functions to callback
-            funcs = args.shift();
-
-            // if there is only one function, make funcs into an array
-            if (!isArray(funcs)) {
-                funcs = [funcs];
-            }
-
-            // keep a reference to us in self
-            self = this;
-
-
-            return function class_cb() {
-                // add the arguments after the curried args
-                var cur = args.concat(makeArray(arguments)),
-                    isString, length = funcs.length,
-                    f = 0,
-                    func;
-
-                // go through each function to call back
-                for (; f < length; f++) {
-                    func = funcs[f];
-                    if (!func) {
-                        continue;
-                    }
-
-                    // set called with the name of the function on self (this is how this.view works)
-                    isString = typeof func == "string";
-
-                    // call the function
-                    cur = (isString ? self[func] : func).apply(self, cur || []);
-
-                    // pass the result to the next function (if there is a next function)
-                    if (f < length - 1) {
-                        cur = !isArray(cur) || cur._use_call ? [cur] : cur
-                    }
-                }
-                return cur;
-            }
-        }
-        can.Construct.proxy = can.Construct.prototype.proxy = proxy;
-    // this corrects the case where can/control loads after can/construct/proxy, so static props don't have proxy
-    var correctedClasses = [can.Observe, can.Control, can.Model],
-        i = 0;
-    for (; i < correctedClasses.length; i++) {
-        if (correctedClasses[i]) {
-            correctedClasses[i].proxy = proxy;
-        }
-    }
-    return can;
-});
-define( 'scripts/components/common/util/lang',['jquery' ], function( $ ) {
-
-  /*
-   * @class adobe/jquery/lang
-   * @tag home
-   * @test adobe/jquery/qunit.html
-   *
-   * Serveral of the methods in this plugin use code
-   * adapted from YUI
-   */
-
-  $.extend( {
-
-    /**
-     * Returns a string representing the type of the item passed in.
-     * @function type
-     * @param o the item to test
-     * @return {string} the detected type
-     */
-    type: function( o ) {
-
-      var TYPES = {
-        'undefined': 'undefined',
-        'number': 'number',
-        'boolean': 'boolean',
-        'string': 'string',
-        '[object Function]': 'function',
-        '[object RegExp]': 'regexp',
-        '[object Array]': 'array',
-        '[object Date]': 'date',
-        '[object Error]': 'error'
-      };
-
-      return  TYPES[typeof o] || TYPES[ Object.prototype.toString.call( o )] || (o ? 'object' : 'null');
-    },
-
-    /**
-     * Determines whether or not the provided item is a boolean
-     * @function isBoolean
-     * @static
-     * @param o The object to test
-     * @return {boolean} true if o is a boolean
-     */
-    isBoolean: function( o ) {
-      return typeof o === 'boolean';
-    },
-
-    /**
-     * Determines whether or not the provided item is null
-     * @function isNull
-     * @static
-     * @param o The object to test
-     * @return {boolean} true if o is null
-     */
-    isNull: function( o ) {
-      return o === null;
-    },
-
-    /**
-     * Determines whether or not the provided item is a legal number
-     * @function isNumber
-     * @static
-     * @param o The object to test
-     * @return {boolean} true if o is a number
-     */
-    isNumber: function( o ) {
-      return typeof o === 'number' && isFinite( o );
-    },
-
-    /**
-     * Determines whether or not the provided item is a string
-     * @function isString
-     * @static
-     * @param o The object to test
-     * @return {boolean} true if o is a string
-     */
-    isString: function( o ) {
-      return typeof o === 'string';
-    },
-
-    /**
-     * Determines whether or not the provided item is undefined
-     * @function isUndefined
-     * @static
-     * @param o The object to test
-     * @return {boolean} true if o is undefined
-     */
-    isUndefined: function( o ) {
-      return typeof o === 'undefined';
-    },
-
-    /**
-     * A convenience method for detecting a legitimate non-null value.
-     * Returns false for null/undefined/NaN, true for other values,
-     * including 0/false/''
-     * @function isValue
-     * @static
-     * @param o The item to test
-     * @return {boolean} true if it is not null/undefined/NaN || false
-     */
-    isValue: function( o ) {
-      var t = this.type( o );
-      switch( t ) {
-      case 'number':
-        return isFinite( o );
-      case 'null':
-      case 'undefined':
-        return false;
-      default:
-        return !!(t);
-      }
-    },
-
-
-    /**
-     * Determines whether or not the supplied item is a date instance
-     * @function isDate
-     * @static
-     * @param o The object to test
-     * @return {boolean} true if o is a date
-     */
-    isDate: function( o ) {
-      // return o instanceof Date;
-      return this.type( o ) === 'date';
-    },
-
-    /**
-     * @function timeStampToDate
-     * @param {String} timestamp
-     * @return {Date}
-     */
-    timeStampToDate: function( timestamp ) {
-      // http://stackoverflow.com/questions/1214234/javascript-date-parsing-bug-fails-for-dates-in-june
-      var regex = new RegExp( "^([\\d]{4})-([\\d]{2})-([\\d]{2})T([\\d]{2}):([\\d]{2}):([\\d]{2}\\.?[\\d]{0,3})([\\+\\-])([\\d]{2}):([\\d]{2})$" ),
-        matches = regex.exec( timestamp ),
-        offset,
-        result;
-
-      if( matches != null ) {
-        offset = parseInt( matches[8], 10 ) * 60 + parseInt( matches[9], 10 );
-
-        if( matches[7] === "-" ) {
-          offset = -offset;
-        }
-
-        result = new Date(
-          Date.UTC(
-            parseInt( matches[1], 10 ),
-            parseInt( matches[2], 10 ) - 1,
-            parseInt( matches[3], 10 ),
-            parseInt( matches[4], 10 ),
-            parseInt( matches[5], 10 ),
-            parseInt( matches[6], 10 )
-          ) - offset * 60 * 1000
-        );
-
-        return result;
-      }
-
-      return null;
-    },
-
-    /**
-     * @function ISO8601DateString
-     * @param {Date} timestamp
-     * @return {String}
-     */
-    // https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/Date#Example.3A_ISO_8601_formatted_dates
-    ISO8601DateString : function (d) {
-      function pad(n){ return n<10 ? '0'+n : n; }
-      return d.getUTCFullYear()+'-' +
-        pad(d.getUTCMonth()+1)+'-' +
-        pad(d.getUTCDate())+'T' +
-        pad(d.getUTCHours())+':' +
-        pad(d.getUTCMinutes())+':' +
-        pad(d.getUTCSeconds())+'Z';
-    },
-
-    isPrimitive: function( o ) {
-      var t = this.type( o );
-      switch( t ) {
-      case 'undefined' :
-      case 'number' :
-      case 'boolean' :
-      case 'string' :
-        return true;
-      default:
-        return false;
-      }
-    },
-
-    /**
-     * Returns true if the object contains a given key
-     * @function hasKey
-     * @static
-     * @param o an object
-     * @param k the key to query
-     * @return {boolean} true if the object contains the key
-     */
-    hasKey: function( o, k ) {
-      // return (o.hasOwnProperty(k));
-      return (k in o);
-    },
-
-
-    /**
-     * This will not be needed once we port to jmvc
-     * @param {Object} ns
-     */
-    createNs: function( ns ) {
-      var o, a;
-
-      a = ns.split( "." );
-      o = window[a[0]] = window[a[0]] || {};
-
-      $.each( a.slice( 1 ), function( i, n ) {
-        o = o[n] = o[n] || {};
-      } );
-
-      return o;
-    },
-
-    rgb2hex: function( rgb ) {
-      var hexDigits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F"],
-        rgbVal = rgb.match( /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/ );
-
-      function hex( num ) {
-        return isNaN( num ) ? "00" : hexDigits[(num - num % 16) / 16] + hexDigits[num % 16];
-      }
-
-      return "#" + hex( rgbVal[1] ) + hex( rgbVal[2] ) + hex( rgbVal[3] );
-    },
-
-    // Thanks Ben Nadel: http://www.bennadel.com/blog/1871-Translating-Global-jQuery-Event-Coordinates-To-A-Local-Context.htm
-    localToGlobal: function( context, localX, localY ) {
-      // Get the position of the context element.
-      var result = {},
-        position = context.offset();
-
-      // Set the X/Y in the global context.
-      result.x = Math.floor( localX + position.left );
-      result.y = Math.floor( localY + position.top );
-
-      return result;
-    },
-
-    globalToLocal: function( context, globalX, globalY ) {
-      // Get the position of the context element.
-      var result = {},
-        position = context.offset();
-
-      // Set the X/Y in the local context.
-      result.x = Math.floor( globalX - position.left );
-      result.y = Math.floor( globalY - position.top );
-
-      return result;
-    }
-
-  } );
-
-  return jQuery;
-
-} );
-
-
 define('scripts/components/common/models/configuration-model',[
-  'jquery',
-  'can',
-  'can-proxy',
-  'scripts/components/common/util/lang'
+	'jquery',
+	'can',
+	'can-proxy',
+	'scripts/components/common/util/lang'
 ], function( $, can ){
 
-  var configModel = can.Model.extend({
+	var configModel = can.Model.extend({
 
-    domains: {
-      "dev" : "www.dev04.adobe.com",
-      "pre-stage" : "www.qa04.adobe.com",
-      "stage" : "www.stage.adobe.com",
-      "prod" : "www.adobe.com"
-    },
+		domains: {
+			"dev" : "store1.dev04.adobe.com",
+			"pre-stage" : "store1.qa04.adobe.com",
+			"stage" : "store1.stage.adobe.com",
+			"prod" : "store1.adobe.com"
+		},
 
-    requiredAttrs : [ 'appId', 'clientId', 'countryCode', 'marketSegment' ],
+		requiredAttrs : [ 'appId', 'clientId', 'countryCode', 'marketSegment' ],
 
-    MISSING_REQUIRED_ATTRIBUTES : 'Missing required attributes: ',
-    CONFIGURATION_ERROR: 'CONFIGURATION_ERROR',
-    CLIENT_URL_UNAVAILABLE: 'CLIENT_URL_UNAVAILABLE'
+		MISSING_REQUIRED_ATTRIBUTES : 'Missing required attributes: ',
+		CONFIGURATION_ERROR: 'CONFIGURATION_ERROR',
+		CLIENT_URL_UNAVAILABLE: 'CLIENT_URL_UNAVAILABLE'
 
-  },{
+	},{
 
-    init: function(){
-      var required = this.constructor.requiredAttrs,
-        attr;
+		init: function(){
+			var required = this.constructor.requiredAttrs,
+				attr;
 
-      for( var i=0; i < required.length; i++ ){
-        attr = required[ i ];
-        if( !this.attr( attr ) ){
-          throw new Error(this.constructor.MISSING_REQUIRED_ATTRIBUTES + attr );
-        }
-      }
-    },
+			for( var i=0; i < required.length; i++ ){
+				attr = required[ i ];
+				if( !this.attr( attr ) ){
+					throw new Error(this.constructor.MISSING_REQUIRED_ATTRIBUTES + attr );
+				}
+			}
+		},
 
-    load : function( scope, success, error ){
-      var params = this.attr();
+		load : function( scope, success, error ){
+			var params = this.attr();
 
-      this.callbackScope = scope;
-      this.successCallback = success;
-      this.errorCallback = error;
+			this.callbackScope = scope;
+			this.successCallback = success;
+			this.errorCallback = error;
 
-      return $.ajax({
-        url: this.getRequestUrl( params ),
-        dataType: 'jsonp',
-        jsonpCallback: this.getCallbackName( params ),
-        success: this.proxy( 'handleLoadSuccess' ),
-        error: this.proxy( 'handleLoadError' )
-      });
-    },
+			return $.ajax({
+				url: this.getRequestUrl( params ),
+				dataType: 'jsonp',
+				jsonpCallback: this.getCallbackName( params ),
+				success: this.proxy( 'handleLoadSuccess' ),
+				error: this.proxy( 'handleLoadError' )
+			});
+		},
 
-    handleLoadSuccess: function( responseData ){
-      if( !this.isClientUrlAvailable( responseData ) ){
-        var errorObj = { errorType: this.constructor.CLIENT_URL_UNAVAILABLE };
-        this.doErrorCallback( errorObj );
-      } else {
-        var model = this.updateData( responseData );
-        this.doSuccessCallback( model );
-      }
-    },
+		handleLoadSuccess: function( responseData ){
+			if( !this.isClientUrlAvailable( responseData ) ){
+				var errorObj = { errorType: this.constructor.CLIENT_URL_UNAVAILABLE };
+				this.doErrorCallback( errorObj );
+			} else {
+				var model = this.updateData( responseData );
+				this.doSuccessCallback( model );
+			}
+		},
 
-    handleLoadError: function( jqXHR ){
-      var errorObj = { errorType: this.constructor.CONFIGURATION_ERROR };
-      this.doErrorCallback( errorObj );
-    },
+		handleLoadError: function( jqXHR ){
+			var errorObj = { errorType: this.constructor.CONFIGURATION_ERROR };
+			this.doErrorCallback( errorObj );
+		},
 
-    doSuccessCallback: function( model ){
-      this.successCallback.call( this.callbackScope, model );
-    },
+		doSuccessCallback: function( model ){
+			this.successCallback.call( this.callbackScope, model );
+		},
 
-    doErrorCallback: function( errorObj ){
-      this.errorCallback.call( this.callbackScope, errorObj );
-    },
+		doErrorCallback: function( errorObj ){
+			this.errorCallback.call( this.callbackScope, errorObj );
+		},
 
-    //CLIENT_URL_UNAVAILABLE error will be triggered in 2 scenarios:
-    //1. Requested config file doesn't exist (meaning country isn't supported)
-    //2. Config file exists but specified marketSegment isn't supported for that country.
-    //
-    //Note that CLIENT_URL_UNAVAILABLE is a Checkout-only error.
-    //Other apps will simply trigger a CONFIGURATION_ERROR for all error scenarios.
-    isClientUrlAvailable: function( responseData ){
-      return( this.isMarketSegmentSupported( responseData ) && !this.is404Response( responseData ) );
-    },
+		//CLIENT_URL_UNAVAILABLE error will be triggered in 2 scenarios:
+		//1. Requested config file doesn't exist (meaning country isn't supported)
+		//2. Config file exists but specified marketSegment isn't supported for that country.
+		//
+		//Note that CLIENT_URL_UNAVAILABLE is a Checkout-only error. 
+		//Other apps will simply trigger a CONFIGURATION_ERROR for all error scenarios.
+		isClientUrlAvailable: function( responseData ){
+			return( this.isMarketSegmentSupported( responseData ) && !this.is404Response( responseData ) );
+		},
 
-    isMarketSegmentSupported: function( responseData ){
-      var isAvailable = true;
-      if( $.isValue( responseData.supportedMarketSegments ) ){
-        isAvailable = responseData.supportedMarketSegments.indexOf( this.attr( 'marketSegment' ) ) > -1;
-      }
-      return isAvailable;
-    },
+		isMarketSegmentSupported: function( responseData ){
+			var isAvailable = true;
+			if( $.isValue( responseData.supportedMarketSegments ) ){
+				isAvailable = responseData.supportedMarketSegments.indexOf( this.attr( 'marketSegment' ) ) > -1;
+			}
+			return isAvailable;
+		},
 
-    //There are Apache rewrite rules in place on the server
-    //to return a 404.json file (with simple { "errorCode": 404 } content)
-    //when a file is requested that doesn't exist (rather than returning an actual 404 response).
-    //This function checks to see if the response is that 404.json file
-    //
-    //(Note the 404.json file has a checkoutConfig callback function. Any other components that receive
-    //this 404.json response will simply fall into the error handler, not the success handler.
-    //This can be refactored if we want a 404.json response for each component)
-    is404Response: function( responseData ){
-      var is404 = false;
-      if( $.isValue( responseData.errorCode )){
-        is404 = ( responseData.errorCode === 404 );
-      }
-      return is404;
-    },
+		//There are Apache rewrite rules in place on the server
+		//to return a 404.json file (with simple { "errorCode": 404 } content)
+		//when a file is requested that doesn't exist (rather than returning an actual 404 response).
+		//This function checks to see if the response is that 404.json file
+		//
+		//(Note the 404.json file has a checkoutConfig callback function. Any other components that receive
+		//this 404.json response will simply fall into the error handler, not the success handler. 
+		//This can be refactored if we want a 404.json response for each component)
+		is404Response: function( responseData ){
+			var is404 = false;
+			if( $.isValue( responseData.errorCode )){
+				is404 = ( responseData.errorCode === 404 );
+			}
+			return is404;
+		},
 
-    updateData : function( data ){
-      //If the configuration data indicates that a redirect to an external experience is required,
-      //appPath won't be defined in config data (and generating the appUrl is unnecessary)
-      if( data.appPath ){
-        var params = this.attr(),
-          origin = ( window.location.origin ) ? window.location.origin : ( window.location.protocol + "//" + window.location.hostname + ( window.location.port ? ':' + window.location.port: '' ) ),
-          baseURL = ( params.isLocal ) ? origin : data.baseUrl[ this.attr('landscape') ],
-          appPath =  ( params.isLocal )  ? data[ 'appPath' ].replace("/anyware/latest/", "/app/") :  data[ 'appPath' ];
+		updateData : function( data ){
+			//If the configuration data indicates that a redirect to an external experience is required, 
+			//appPath won't be defined in config data (and generating the appUrl is unnecessary)
+			if( data.appPath ){
+				var params = this.attr(),
+					origin = ( window.location.origin ) ? window.location.origin : ( window.location.protocol + "//" + window.location.hostname + ( window.location.port ? ':' + window.location.port: '' ) ),
+					baseURL = ( params.isLocal ) ? origin : data.baseUrl[ this.attr('landscape') ],
+					appPath =  ( params.isLocal )  ? data[ 'appPath' ].replace("/anyware/latest/", "/app/") :  data[ 'appPath' ];
 
-        if( params.debug ) {
-          appPath +=  appPath.indexOf( '?' ) > 0 ? '&compress=false' : '?compress=false';
-        }
+				if( params.debug ) {
+					appPath +=  appPath.indexOf( '?' ) > 0 ? '&compress=false' : '?compress=false';
+				}
 
-        data.appUrl = baseURL + appPath;
-      }
-      return this.attr( data );
-    },
+				data.appUrl = baseURL + appPath;
+			}
+			return this.attr( data );
+		},
 
-    getRequestUrl : function(){
+		getRequestUrl : function(){
 
-      var params = this.attr(),
-        baseURL = this.getBaseUrl(),
-        rootPath = ( params.isLocal ) ? "/app" : "/anyware/latest",
-        basePath = rootPath + '/resources/config/';
+			var params = this.attr(),
+				baseURL = this.getBaseUrl(),
+				rootPath = ( params.isLocal ) ? "/app" : "/anyware/latest",
+				basePath = rootPath + '/resources/config/';
 
-      return ( baseURL + basePath + params.appId + '/' + params.clientId + '/' + params.countryCode.toUpperCase() + '/config.json' );
-    },
+			return ( baseURL + basePath + params.appId + '/' + params.clientId + '/' + params.countryCode.toUpperCase() + '/config.json' );
+		},
 
-    getBaseUrl : function(){
-      var params = this.attr(),
-        protocol = document.location.protocol,
-        baseUrl = '';
+		getBaseUrl : function(){
+			var params = this.attr(),
+				protocol = document.location.protocol,
+				baseUrl = '';
 
-      if( $.isValue( params.landscape ) && !params.isLocal ){
-        baseUrl = protocol + "//" + this.getConfigDomain( params.landscape );
-      }
+			if( $.isValue( params.landscape ) && !params.isLocal ){
+				baseUrl = protocol + "//" + this.getConfigDomain( params.landscape );
+			}
 
-      return baseUrl;
-    },
+			return baseUrl;
+		},
 
-    getConfigDomain : function( landscape ){
-      var domains = this.constructor.domains;
+		getConfigDomain : function( landscape ){
+			var domains = this.constructor.domains;
 
-      return domains[ landscape ] || domains.prod;
-    },
+			return domains[ landscape ] || domains.prod;
+		},
 
-    getCallbackName : function( params ){
-      return params.appId + 'Config';
-    }
+		getCallbackName : function( params ){
+			return params.appId + 'Config';
+		},
 
-  });
+		getConfigBaseUrl : function( landscape ){
+			var baseUrl = this.attr().baseUrl[ landscape ];
+			return baseUrl;
+		}
+	});
 
-  return configModel;
+	return configModel;
 
 });
-/*!
-* CanJS - 1.1.5 (2013-03-27)
-* http://canjs.us/
-* Copyright (c) 2013 Bitovi
-* Licensed MIT
-*/
-define('lib/canjs/amd/can/control/plugin',['jquery', 'can/util/library', 'can/control'], function ($, can) {
-    //used to determine if a control instance is one of controllers
-    //controllers can be strings or classes
-    var i, isAControllerOf = function (instance, controllers) {
-        for (i = 0; i < controllers.length; i++) {
-            if (typeof controllers[i] == 'string' ? instance.constructor._shortName == controllers[i] : instance instanceof controllers[i]) {
-                return true;
+define('scripts/components/common/util/options-validator-util',[ 'jquery', 'can', 'scripts/components/common/util/lang' ], function( $, can ){
+
+	var OptionsValidator = can.Construct.extend({
+
+		/**
+		 * For every validationRule in the validationRules object, will find the 
+		 * corresponding value in the options object, and validate it 
+		 * against the validationRule's RegExp pattern.
+		 * If validation fails (or if the option has no value), will
+		 * see if the validationRule specifies a defaultValue,
+		 * and will populate the option with the value if it exists.
+		 */
+		validateOptions: function( options, configData ){
+			
+			if( configData.validationRules ){
+
+				var validationRules = configData.validationRules,
+					validationRule,
+					optionName;
+				
+				for( optionName in validationRules ){
+					validationRule = validationRules[ optionName ];
+					options[ optionName ] = this.processValidationRule( validationRule, optionName, options );
+				}
+			}
+
+			return options;
+		},
+
+		processValidationRule: function( validationRule, optionName, options ){
+			var optionValue = options[ optionName ],
+				validatorPattern = new RegExp( validationRule.pattern, validationRule.flags ),
+				validatedValue = optionValue;
+
+			if( !validatorPattern.test( optionValue )){
+				validatedValue = this.getDefaultValue( validationRule, options );
+			}
+
+			return validatedValue;			
+		},
+
+		getDefaultValue: function( validationRule, options ){
+			var defaultValue;
+			if( validationRule.defaultValue ){
+				defaultValue = this.getDepthValue( 0, validationRule.defaultValue, validationRule, options );	
+			}
+			return defaultValue;
+			
+		},
+
+		getDepthValue: function( currentDepth, currentDepthValue, validationRule, options ){
+			var targetDepth = validationRule.defaultValueDepth || 0,
+				optionName, 
+				nextDepthValue;
+
+			if( targetDepth === currentDepth ){
+				return currentDepthValue;
+			} else {
+				optionName = this.getOptionName( currentDepthValue );
+				nextDepthValue = this.getNextDepthValue( currentDepthValue[ optionName ], optionName, options );
+				return this.getDepthValue( ++currentDepth, nextDepthValue, validationRule, options );
+			}
+		},
+
+		//Assumes that depthValue is an object with a single key that is an optionName.
+		getOptionName: function( depthValue ){
+			var optionName;
+			for ( var key in depthValue ){
+				optionName = key;
+			}
+			return optionName;
+		},
+
+		getNextDepthValue: function( depthValue, optionName, options ){
+			var optionValue = options[ optionName ];
+			return depthValue[ optionValue ] || depthValue.fallbackValue;
+		}
+
+	}, {} );
+
+	return OptionsValidator;
+
+});
+        /* Simple JavaScript Inheritance
+         * By John Resig http://ejohn.org/
+         * MIT Licensed.
+         */
+        // Inspired by base2 and Prototype
+        (function(){
+          var initializing = false, fnTest = /xyz/.test(function(){xyz;}) ? /\b_super\b/ : /.*/;
+
+          // The base Class implementation (does nothing)
+          this.Class = function(){};
+
+          // Create a new Class that inherits from this class
+          Class.extend = function(prop) {
+            var _super = this.prototype;
+
+            // Instantiate a base class (but only create the instance,
+            // don't run the init constructor)
+            initializing = true;
+            var prototype = new this();
+            initializing = false;
+
+            // Copy the properties over onto the new prototype
+            for (var name in prop) {
+              // Check if we're overwriting an existing function
+              prototype[name] = typeof prop[name] == "function" &&
+                typeof _super[name] == "function" && fnTest.test(prop[name]) ?
+                (function(name, fn){
+                  return function() {
+                    var tmp = this._super;
+
+                    // Add a new ._super() method that is the same method
+                    // but on the super-class
+                    this._super = _super[name];
+
+                    // The method only need to be bound temporarily, so we
+                    // remove it when we're done executing
+                    var ret = fn.apply(this, arguments);
+                    this._super = tmp;
+
+                    return ret;
+                  };
+                })(name, prop[name]) :
+                prop[name];
             }
-        }
-        return false;
-    },
-        makeArray = can.makeArray,
-        old = can.Control.setup;
 
-    can.Control.setup = function () {
-        // if you didn't provide a name, or are control, don't do anything
-        if (this !== can.Control) {
-
-
-            var pluginName = this.pluginName || this._fullName;
-
-            // create jQuery plugin
-            if (pluginName !== 'can_control') {
-                this.plugin(pluginName);
+            // The dummy class constructor
+            function Class() {
+              // All construction is actually done in the init method
+              if ( !initializing && this.init )
+                this.init.apply(this, arguments);
             }
 
-            old.apply(this, arguments);
-        }
-    };
+            // Populate our constructed prototype object
+            Class.prototype = prototype;
 
-    $.fn.extend({
+            // Enforce the constructor to be what we expect
+            Class.constructor = Class;
 
+            // And make this class extendable
+            Class.extend = arguments.callee;
 
-        controls: function () {
-            var controllerNames = makeArray(arguments),
-                instances = [],
-                controls, c, cname;
-            //check if arguments
-            this.each(function () {
+            return Class;
+          };
+        })();
 
-                controls = can.$(this).data("controls");
-                if (!controls) {
-                    return;
-                }
-                for (var i = 0; i < controls.length; i++) {
-                    c = controls[i];
-                    if (!controllerNames.length || isAControllerOf(c, controllerNames)) {
-                        instances.push(c);
-                    }
-                }
-            });
-            return instances;
-        },
+define("lib/jquery-encoder/libs/Class.create", function(){});
 
+/*
+ * Copyright (c) 2010 - The OWASP Foundation
+ *
+ * The jquery-encoder is published by OWASP under the MIT license. You should read and accept the
+ * LICENSE before you use, modify, and/or redistribute this software.
+ */
 
-        control: function (control) {
-            return this.controls.apply(this, arguments)[0];
-        }
-    });
+(function($){var default_immune={'attr':[',','.','-','_'],'css':['(',',','\'','"',')',' '],'js':[',','.','_',' ']};var unsafeKeys={'attr':[],'css':['behavior','-moz-behavior','-ms-behavior']};$.encoder={encodeForHTML:function(input){var div=document.createElement('div');$(div).text(input);return $(div).html();},encodeForHTMLAttribute:function(input,immune){if(!immune)immune=default_immune['attr'];var encoded='';for(var i=0;i<input.length;i++){var ch=input.charAt(i),cc=input.charCodeAt(i);if(!ch.match(/[a-zA-Z0-9]/)&&$.inArray(ch,immune)<0){var hex=cc.toString(16);encoded+='&#x'+hex+';';}else{encoded+=ch;}}
+return encoded;},encodeForCSS:function(input,immune){if(!immune)immune=default_immune['css'];var encoded='';for(var i=0;i<input.length;i++){var ch=input.charAt(i),cc=input.charCodeAt(i);if(!ch.match(/[a-zA-Z0-9]/)&&$.inArray(ch,immune)<0){var hex=cc.toString(16);encoded+='\\'+hex+' ';}else{encoded+=ch;}}
+return encoded;},encodeForURL:function(input){return encodeURIComponent(input);},encodeForJavascript:function(input,immune){if(!immune)immune=default_immune['js'];var encoded='';for(var i=0;i<input.length;i++){var ch=input.charAt(i),cc=input.charCodeAt(i);if($.inArray(ch,immune)>=0||hex[cc]==null){encoded+=ch;continue;}
+var temp=cc.toString(16),pad;if(cc<256){pad='00'.substr(temp.length);encoded+='\\x'+pad+temp.toUpperCase();}else{pad='0000'.substr(temp.length);encoded+='\\u'+pad+temp.toUpperCase();}}
+return encoded;},canonicalize:function(input,strict){if(input===null)return null;var out=input,cycle_out=input;var decodeCount=0,cycles=0;var codecs=[new HTMLEntityCodec(),new PercentCodec(),new CSSCodec()];while(true){cycle_out=out;for(var i=0;i<codecs.length;i++){var new_out=codecs[i].decode(out);if(new_out!=out){decodeCount++;out=new_out;}}
+if(cycle_out==out){break;}
+cycles++;}
+if(strict&&decodeCount>1){throw"Attack Detected - Multiple/Double Encodings used in input";}
+return out;}};var hex=[];for(var c=0;c<0xFF;c++){if(c>=0x30&&c<=0x39||c>=0x41&&c<=0x5a||c>=0x61&&c<=0x7a){hex[c]=null;}else{hex[c]=c.toString(16);}}
+var methods={html:function(opts){return $.encoder.encodeForHTML(opts.unsafe);},css:function(opts){var work=[];var out=[];if(opts.map){work=opts.map;}else{work[opts.name]=opts.unsafe;}
+for(var k in work){if(!(typeof work[k]=='function')&&work.hasOwnProperty(k)){var cKey=$.encoder.canonicalize(k,opts.strict);if($.inArray(cKey,unsafeKeys[opts.context])<0){out[k]=$.encoder.encodeForCSS(work[k]);}}}
+return out;},attr:function(opts){var work=[];var out=[];if(opts.map){work=opts.map;}else{work[opts.name]=opts.unsafe;}
+for(var k in work){if(!(typeof work[k]=='function')&&work.hasOwnProperty(k)){var cKey=$.encoder.canonicalize(k,opts.strict);if($.inArray(cKey,unsafeKeys[opts.context])<0){out[k]=$.encoder.encodeForHTMLAttribute(work[k]);}}}
+return out;}};$.fn.encode=function(){var argCount=arguments.length;var opts={'context':'html','unsafe':null,'name':null,'map':null,'setter':null,'strict':true};if(argCount==1&&typeof arguments[0]=='object'){$.extend(opts,arguments[0]);}else{opts.context=arguments[0];if(arguments.length==2){if(opts.context=='html'){opts.unsafe=arguments[1];}
+else if(opts.content=='attr'||opts.content=='css'){opts.map=arguments[1];}}else{opts.name=arguments[1];opts.unsafe=arguments[2];}}
+if(opts.context=='html'){opts.setter=this.html;}
+else if(opts.context=='css'){opts.setter=this.css;}
+else if(opts.context=='attr'){opts.setter=this.attr;}
+return opts.setter.call(this,methods[opts.context].call(this,opts));};var PushbackString=Class.extend({_input:null,_pushback:null,_temp:null,_index:0,_mark:0,_hasNext:function(){if(this._input==null)return false;if(this._input.length==0)return false;return this._index<this._input.length;},init:function(input){this._input=input;},pushback:function(c){this._pushback=c;},index:function(){return this._index;},hasNext:function(){if(this._pushback!=null)return true;return this._hasNext();},next:function(){if(this._pushback!=null){var save=this._pushback;this._pushback=null;return save;}
+return(this._hasNext())?this._input.charAt(this._index++):null;},nextHex:function(){var c=this.next();if(c==null)return null;if(c.match(/[0-9A-Fa-f]/))return c;return null;},peek:function(c){if(c){if(this._pushback&&this._pushback==c)return true;return this._hasNext()?this._input.charAt(this._index)==c:false;}
+if(this._pushback)return this._pushback;return this._hasNext()?this._input.charAt(this._index):null;},mark:function(){this._temp=this._pushback;this._mark=this._index;},reset:function(){this._pushback=this._temp;this._index=this._mark;},remainder:function(){var out=this._input.substr(this._index);if(this._pushback!=null){out=this._pushback+out;}
+return out;}});var Codec=Class.extend({decode:function(input){var out='',pbs=new PushbackString(input);while(pbs.hasNext()){var c=this.decodeCharacter(pbs);if(c!=null){out+=c;}else{out+=pbs.next();}}
+return out;},decodeCharacter:function(pbs){return pbs.next();}});var HTMLEntityCodec=Codec.extend({decodeCharacter:function(input){input.mark();var first=input.next();if(first==null||first!='&'){input.reset();return null;}
+var second=input.next();if(second==null){input.reset();return null;}
+var c;if(second=='#'){c=this._getNumericEntity(input);if(c!=null)return c;}else if(second.match(/[A-Za-z]/)){input.pushback(second);c=this._getNamedEntity(input);if(c!=null)return c;}
+input.reset();return null;},_getNamedEntity:function(input){var possible='',entry,len;len=Math.min(input.remainder().length,ENTITY_TO_CHAR_TRIE.getMaxKeyLength());for(var i=0;i<len;i++){possible+=input.next().toLowerCase();}
+entry=ENTITY_TO_CHAR_TRIE.getLongestMatch(possible);if(entry==null)
+return null;input.reset();input.next();len=entry.getKey().length;for(var j=0;j<len;j++){input.next();}
+if(input.peek(';'))
+input.next();return entry.getValue();},_getNumericEntity:function(input){var first=input.peek();if(first==null)return null;if(first=='x'||first=='X'){input.next();return this._parseHex(input);}
+return this._parseNumber(input);},_parseHex:function(input){var out='';while(input.hasNext()){var c=input.peek();if(!isNaN(parseInt(c,16))){out+=c;input.next();}else if(c==';'){input.next();break;}else{break;}}
+var i=parseInt(out,16);if(!isNaN(i)&&isValidCodePoint(i))return String.fromCharCode(i);return null;},_parseNumber:function(input){var out='';while(input.hasNext()){var ch=input.peek();if(!isNaN(parseInt(ch,10))){out+=ch;input.next();}else if(ch==';'){input.next();break;}else{break;}}
+var i=parseInt(out,10);if(!isNaN(i)&&isValidCodePoint(i))return String.fromCharCode(i);return null;}});var PercentCodec=Codec.extend({decodeCharacter:function(input){input.mark();var first=input.next();if(first==null){input.reset();return null;}
+if(first!='%'){input.reset();return null;}
+var out='';for(var i=0;i<2;i++){var c=input.nextHex();if(c!=null)out+=c;}
+if(out.length==2){var p=parseInt(out,16);if(isValidCodePoint(p))
+return String.fromCharCode(p);}
+input.reset();return null;}});var CSSCodec=Codec.extend({decodeCharacter:function(input){input.mark();var first=input.next();if(first==null||first!='\\'){input.reset();return null;}
+var second=input.next();if(second==null){input.reset();return null;}
+switch(second){case'\r':if(input.peek('\n')){input.next();}
+case'\n':case'\f':case'\u0000':return this.decodeCharacter(input);}
+if(parseInt(second,16)=='NaN'){return second;}
+var out=second;for(var j=0;j<5;j++){var c=input.next();if(c==null||isWhiteSpace(c)){break;}
+if(parseInt(c,16)!='NaN'){out+=c;}else{input.pushback(c);break;}}
+var p=parseInt(out,16);if(isValidCodePoint(p))
+return String.fromCharCode(p);return'\ufffd';}});var Trie=Class.extend({root:null,maxKeyLen:0,size:0,init:function(){this.clear();},getLongestMatch:function(key){return(this.root==null&&key==null)?null:this.root.getLongestMatch(key,0);},getMaxKeyLength:function(){return this.maxKeyLen;},clear:function(){this.root=null,this.maxKeyLen=0,this.size=0;},put:function(key,val){var len,old;if(this.root==null)
+this.root=new Trie.Node();if((old=this.root.put(key,0,val))!=null)
+return old;if((len=key.length)>this.maxKeyLen)
+this.maxKeyLen=key.length;this.size++;return null;}});Trie.Entry=Class.extend({_key:null,_value:null,init:function(key,value){this._key=key,this._value=value;},getKey:function(){return this._key;},getValue:function(){return this._value;},equals:function(other){if(!(other instanceof Trie.Entry)){return false;}
+return this._key==other._key&&this._value==other._value;}});Trie.Node=Class.extend({_value:null,_nextMap:null,setValue:function(value){this._value=value;},getNextNode:function(ch){if(!this._nextMap)return null;return this._nextMap[ch];},put:function(key,pos,value){var nextNode,ch,old;if(key.length==pos){old=this._value;this.setValue(value);return old;}
+ch=key.charAt(pos);if(this._nextMap==null){this._nextMap=Trie.Node.newNodeMap();nextNode=new Trie.Node();this._nextMap[ch]=nextNode;}else if((nextNode=this._nextMap[ch])==null){nextNode=new Trie.Node();this._nextMap[ch]=nextNode;}
+return nextNode.put(key,pos+1,value);},get:function(key,pos){var nextNode;if(key.length<=pos)
+return this._value;if((nextNode=this.getNextNode(key.charAt(pos)))==null)
+return null;return nextNode.get(key,pos+1);},getLongestMatch:function(key,pos){var nextNode,ret;if(key.length<=pos){return Trie.Entry.newInstanceIfNeeded(key,this._value);}
+if((nextNode=this.getNextNode(key.charAt(pos)))==null){return Trie.Entry.newInstanceIfNeeded(key,pos,this._value);}
+if((ret=nextNode.getLongestMatch(key,pos+1))!=null){return ret;}
+return Trie.Entry.newInstanceIfNeeded(key,pos,this._value);}});Trie.Entry.newInstanceIfNeeded=function(){var key=arguments[0],value,keyLength;if(typeof arguments[1]=='string'){value=arguments[1];keyLength=key.length;}else{keyLength=arguments[1];value=arguments[2];}
+if(value==null||key==null){return null;}
+if(key.length>keyLength){key=key.substr(0,keyLength);}
+return new Trie.Entry(key,value);};Trie.Node.newNodeMap=function(){return{};};var isValidCodePoint=function(codepoint){return codepoint>=0x0000&&codepoint<=0x10FFFF;};var isWhiteSpace=function(input){return input.match(/[\s]/);};var MAP_ENTITY_TO_CHAR=[];var MAP_CHAR_TO_ENTITY=[];var ENTITY_TO_CHAR_TRIE=new Trie();(function(){MAP_ENTITY_TO_CHAR["&quot"]="34";MAP_ENTITY_TO_CHAR["&amp"]="38";MAP_ENTITY_TO_CHAR["&lt"]="60";MAP_ENTITY_TO_CHAR["&gt"]="62";MAP_ENTITY_TO_CHAR["&nbsp"]="160";MAP_ENTITY_TO_CHAR["&iexcl"]="161";MAP_ENTITY_TO_CHAR["&cent"]="162";MAP_ENTITY_TO_CHAR["&pound"]="163";MAP_ENTITY_TO_CHAR["&curren"]="164";MAP_ENTITY_TO_CHAR["&yen"]="165";MAP_ENTITY_TO_CHAR["&brvbar"]="166";MAP_ENTITY_TO_CHAR["&sect"]="167";MAP_ENTITY_TO_CHAR["&uml"]="168";MAP_ENTITY_TO_CHAR["&copy"]="169";MAP_ENTITY_TO_CHAR["&ordf"]="170";MAP_ENTITY_TO_CHAR["&laquo"]="171";MAP_ENTITY_TO_CHAR["&not"]="172";MAP_ENTITY_TO_CHAR["&shy"]="173";MAP_ENTITY_TO_CHAR["&reg"]="174";MAP_ENTITY_TO_CHAR["&macr"]="175";MAP_ENTITY_TO_CHAR["&deg"]="176";MAP_ENTITY_TO_CHAR["&plusmn"]="177";MAP_ENTITY_TO_CHAR["&sup2"]="178";MAP_ENTITY_TO_CHAR["&sup3"]="179";MAP_ENTITY_TO_CHAR["&acute"]="180";MAP_ENTITY_TO_CHAR["&micro"]="181";MAP_ENTITY_TO_CHAR["&para"]="182";MAP_ENTITY_TO_CHAR["&middot"]="183";MAP_ENTITY_TO_CHAR["&cedil"]="184";MAP_ENTITY_TO_CHAR["&sup1"]="185";MAP_ENTITY_TO_CHAR["&ordm"]="186";MAP_ENTITY_TO_CHAR["&raquo"]="187";MAP_ENTITY_TO_CHAR["&frac14"]="188";MAP_ENTITY_TO_CHAR["&frac12"]="189";MAP_ENTITY_TO_CHAR["&frac34"]="190";MAP_ENTITY_TO_CHAR["&iquest"]="191";MAP_ENTITY_TO_CHAR["&Agrave"]="192";MAP_ENTITY_TO_CHAR["&Aacute"]="193";MAP_ENTITY_TO_CHAR["&Acirc"]="194";MAP_ENTITY_TO_CHAR["&Atilde"]="195";MAP_ENTITY_TO_CHAR["&Auml"]="196";MAP_ENTITY_TO_CHAR["&Aring"]="197";MAP_ENTITY_TO_CHAR["&AElig"]="198";MAP_ENTITY_TO_CHAR["&Ccedil"]="199";MAP_ENTITY_TO_CHAR["&Egrave"]="200";MAP_ENTITY_TO_CHAR["&Eacute"]="201";MAP_ENTITY_TO_CHAR["&Ecirc"]="202";MAP_ENTITY_TO_CHAR["&Euml"]="203";MAP_ENTITY_TO_CHAR["&Igrave"]="204";MAP_ENTITY_TO_CHAR["&Iacute"]="205";MAP_ENTITY_TO_CHAR["&Icirc"]="206";MAP_ENTITY_TO_CHAR["&Iuml"]="207";MAP_ENTITY_TO_CHAR["&ETH"]="208";MAP_ENTITY_TO_CHAR["&Ntilde"]="209";MAP_ENTITY_TO_CHAR["&Ograve"]="210";MAP_ENTITY_TO_CHAR["&Oacute"]="211";MAP_ENTITY_TO_CHAR["&Ocirc"]="212";MAP_ENTITY_TO_CHAR["&Otilde"]="213";MAP_ENTITY_TO_CHAR["&Ouml"]="214";MAP_ENTITY_TO_CHAR["&times"]="215";MAP_ENTITY_TO_CHAR["&Oslash"]="216";MAP_ENTITY_TO_CHAR["&Ugrave"]="217";MAP_ENTITY_TO_CHAR["&Uacute"]="218";MAP_ENTITY_TO_CHAR["&Ucirc"]="219";MAP_ENTITY_TO_CHAR["&Uuml"]="220";MAP_ENTITY_TO_CHAR["&Yacute"]="221";MAP_ENTITY_TO_CHAR["&THORN"]="222";MAP_ENTITY_TO_CHAR["&szlig"]="223";MAP_ENTITY_TO_CHAR["&agrave"]="224";MAP_ENTITY_TO_CHAR["&aacute"]="225";MAP_ENTITY_TO_CHAR["&acirc"]="226";MAP_ENTITY_TO_CHAR["&atilde"]="227";MAP_ENTITY_TO_CHAR["&auml"]="228";MAP_ENTITY_TO_CHAR["&aring"]="229";MAP_ENTITY_TO_CHAR["&aelig"]="230";MAP_ENTITY_TO_CHAR["&ccedil"]="231";MAP_ENTITY_TO_CHAR["&egrave"]="232";MAP_ENTITY_TO_CHAR["&eacute"]="233";MAP_ENTITY_TO_CHAR["&ecirc"]="234";MAP_ENTITY_TO_CHAR["&euml"]="235";MAP_ENTITY_TO_CHAR["&igrave"]="236";MAP_ENTITY_TO_CHAR["&iacute"]="237";MAP_ENTITY_TO_CHAR["&icirc"]="238";MAP_ENTITY_TO_CHAR["&iuml"]="239";MAP_ENTITY_TO_CHAR["&eth"]="240";MAP_ENTITY_TO_CHAR["&ntilde"]="241";MAP_ENTITY_TO_CHAR["&ograve"]="242";MAP_ENTITY_TO_CHAR["&oacute"]="243";MAP_ENTITY_TO_CHAR["&ocirc"]="244";MAP_ENTITY_TO_CHAR["&otilde"]="245";MAP_ENTITY_TO_CHAR["&ouml"]="246";MAP_ENTITY_TO_CHAR["&divide"]="247";MAP_ENTITY_TO_CHAR["&oslash"]="248";MAP_ENTITY_TO_CHAR["&ugrave"]="249";MAP_ENTITY_TO_CHAR["&uacute"]="250";MAP_ENTITY_TO_CHAR["&ucirc"]="251";MAP_ENTITY_TO_CHAR["&uuml"]="252";MAP_ENTITY_TO_CHAR["&yacute"]="253";MAP_ENTITY_TO_CHAR["&thorn"]="254";MAP_ENTITY_TO_CHAR["&yuml"]="255";MAP_ENTITY_TO_CHAR["&OElig"]="338";MAP_ENTITY_TO_CHAR["&oelig"]="339";MAP_ENTITY_TO_CHAR["&Scaron"]="352";MAP_ENTITY_TO_CHAR["&scaron"]="353";MAP_ENTITY_TO_CHAR["&Yuml"]="376";MAP_ENTITY_TO_CHAR["&fnof"]="402";MAP_ENTITY_TO_CHAR["&circ"]="710";MAP_ENTITY_TO_CHAR["&tilde"]="732";MAP_ENTITY_TO_CHAR["&Alpha"]="913";MAP_ENTITY_TO_CHAR["&Beta"]="914";MAP_ENTITY_TO_CHAR["&Gamma"]="915";MAP_ENTITY_TO_CHAR["&Delta"]="916";MAP_ENTITY_TO_CHAR["&Epsilon"]="917";MAP_ENTITY_TO_CHAR["&Zeta"]="918";MAP_ENTITY_TO_CHAR["&Eta"]="919";MAP_ENTITY_TO_CHAR["&Theta"]="920";MAP_ENTITY_TO_CHAR["&Iota"]="921";MAP_ENTITY_TO_CHAR["&Kappa"]="922";MAP_ENTITY_TO_CHAR["&Lambda"]="923";MAP_ENTITY_TO_CHAR["&Mu"]="924";MAP_ENTITY_TO_CHAR["&Nu"]="925";MAP_ENTITY_TO_CHAR["&Xi"]="926";MAP_ENTITY_TO_CHAR["&Omicron"]="927";MAP_ENTITY_TO_CHAR["&Pi"]="928";MAP_ENTITY_TO_CHAR["&Rho"]="929";MAP_ENTITY_TO_CHAR["&Sigma"]="931";MAP_ENTITY_TO_CHAR["&Tau"]="932";MAP_ENTITY_TO_CHAR["&Upsilon"]="933";MAP_ENTITY_TO_CHAR["&Phi"]="934";MAP_ENTITY_TO_CHAR["&Chi"]="935";MAP_ENTITY_TO_CHAR["&Psi"]="936";MAP_ENTITY_TO_CHAR["&Omega"]="937";MAP_ENTITY_TO_CHAR["&alpha"]="945";MAP_ENTITY_TO_CHAR["&beta"]="946";MAP_ENTITY_TO_CHAR["&gamma"]="947";MAP_ENTITY_TO_CHAR["&delta"]="948";MAP_ENTITY_TO_CHAR["&epsilon"]="949";MAP_ENTITY_TO_CHAR["&zeta"]="950";MAP_ENTITY_TO_CHAR["&eta"]="951";MAP_ENTITY_TO_CHAR["&theta"]="952";MAP_ENTITY_TO_CHAR["&iota"]="953";MAP_ENTITY_TO_CHAR["&kappa"]="954";MAP_ENTITY_TO_CHAR["&lambda"]="955";MAP_ENTITY_TO_CHAR["&mu"]="956";MAP_ENTITY_TO_CHAR["&nu"]="957";MAP_ENTITY_TO_CHAR["&xi"]="958";MAP_ENTITY_TO_CHAR["&omicron"]="959";MAP_ENTITY_TO_CHAR["&pi"]="960";MAP_ENTITY_TO_CHAR["&rho"]="961";MAP_ENTITY_TO_CHAR["&sigmaf"]="962";MAP_ENTITY_TO_CHAR["&sigma"]="963";MAP_ENTITY_TO_CHAR["&tau"]="964";MAP_ENTITY_TO_CHAR["&upsilon"]="965";MAP_ENTITY_TO_CHAR["&phi"]="966";MAP_ENTITY_TO_CHAR["&chi"]="967";MAP_ENTITY_TO_CHAR["&psi"]="968";MAP_ENTITY_TO_CHAR["&omega"]="969";MAP_ENTITY_TO_CHAR["&thetasym"]="977";MAP_ENTITY_TO_CHAR["&upsih"]="978";MAP_ENTITY_TO_CHAR["&piv"]="982";MAP_ENTITY_TO_CHAR["&ensp"]="8194";MAP_ENTITY_TO_CHAR["&emsp"]="8195";MAP_ENTITY_TO_CHAR["&thinsp"]="8201";MAP_ENTITY_TO_CHAR["&zwnj"]="8204";MAP_ENTITY_TO_CHAR["&zwj"]="8205";MAP_ENTITY_TO_CHAR["&lrm"]="8206";MAP_ENTITY_TO_CHAR["&rlm"]="8207";MAP_ENTITY_TO_CHAR["&ndash"]="8211";MAP_ENTITY_TO_CHAR["&mdash"]="8212";MAP_ENTITY_TO_CHAR["&lsquo"]="8216";MAP_ENTITY_TO_CHAR["&rsquo"]="8217";MAP_ENTITY_TO_CHAR["&sbquo"]="8218";MAP_ENTITY_TO_CHAR["&ldquo"]="8220";MAP_ENTITY_TO_CHAR["&rdquo"]="8221";MAP_ENTITY_TO_CHAR["&bdquo"]="8222";MAP_ENTITY_TO_CHAR["&dagger"]="8224";MAP_ENTITY_TO_CHAR["&Dagger"]="8225";MAP_ENTITY_TO_CHAR["&bull"]="8226";MAP_ENTITY_TO_CHAR["&hellip"]="8230";MAP_ENTITY_TO_CHAR["&permil"]="8240";MAP_ENTITY_TO_CHAR["&prime"]="8242";MAP_ENTITY_TO_CHAR["&Prime"]="8243";MAP_ENTITY_TO_CHAR["&lsaquo"]="8249";MAP_ENTITY_TO_CHAR["&rsaquo"]="8250";MAP_ENTITY_TO_CHAR["&oline"]="8254";MAP_ENTITY_TO_CHAR["&frasl"]="8260";MAP_ENTITY_TO_CHAR["&euro"]="8364";MAP_ENTITY_TO_CHAR["&image"]="8365";MAP_ENTITY_TO_CHAR["&weierp"]="8472";MAP_ENTITY_TO_CHAR["&real"]="8476";MAP_ENTITY_TO_CHAR["&trade"]="8482";MAP_ENTITY_TO_CHAR["&alefsym"]="8501";MAP_ENTITY_TO_CHAR["&larr"]="8592";MAP_ENTITY_TO_CHAR["&uarr"]="8593";MAP_ENTITY_TO_CHAR["&rarr"]="8594";MAP_ENTITY_TO_CHAR["&darr"]="8595";MAP_ENTITY_TO_CHAR["&harr"]="8596";MAP_ENTITY_TO_CHAR["&crarr"]="8629";MAP_ENTITY_TO_CHAR["&lArr"]="8656";MAP_ENTITY_TO_CHAR["&uArr"]="8657";MAP_ENTITY_TO_CHAR["&rArr"]="8658";MAP_ENTITY_TO_CHAR["&dArr"]="8659";MAP_ENTITY_TO_CHAR["&hArr"]="8660";MAP_ENTITY_TO_CHAR["&forall"]="8704";MAP_ENTITY_TO_CHAR["&part"]="8706";MAP_ENTITY_TO_CHAR["&exist"]="8707";MAP_ENTITY_TO_CHAR["&empty"]="8709";MAP_ENTITY_TO_CHAR["&nabla"]="8711";MAP_ENTITY_TO_CHAR["&isin"]="8712";MAP_ENTITY_TO_CHAR["&notin"]="8713";MAP_ENTITY_TO_CHAR["&ni"]="8715";MAP_ENTITY_TO_CHAR["&prod"]="8719";MAP_ENTITY_TO_CHAR["&sum"]="8721";MAP_ENTITY_TO_CHAR["&minus"]="8722";MAP_ENTITY_TO_CHAR["&lowast"]="8727";MAP_ENTITY_TO_CHAR["&radic"]="8730";MAP_ENTITY_TO_CHAR["&prop"]="8733";MAP_ENTITY_TO_CHAR["&infin"]="8734";MAP_ENTITY_TO_CHAR["&ang"]="8736";MAP_ENTITY_TO_CHAR["&and"]="8743";MAP_ENTITY_TO_CHAR["&or"]="8744";MAP_ENTITY_TO_CHAR["&cap"]="8745";MAP_ENTITY_TO_CHAR["&cup"]="8746";MAP_ENTITY_TO_CHAR["&int"]="8747";MAP_ENTITY_TO_CHAR["&there4"]="8756";MAP_ENTITY_TO_CHAR["&sim"]="8764";MAP_ENTITY_TO_CHAR["&cong"]="8773";MAP_ENTITY_TO_CHAR["&asymp"]="8776";MAP_ENTITY_TO_CHAR["&ne"]="8800";MAP_ENTITY_TO_CHAR["&equiv"]="8801";MAP_ENTITY_TO_CHAR["&le"]="8804";MAP_ENTITY_TO_CHAR["&ge"]="8805";MAP_ENTITY_TO_CHAR["&sub"]="8834";MAP_ENTITY_TO_CHAR["&sup"]="8835";MAP_ENTITY_TO_CHAR["&nsub"]="8836";MAP_ENTITY_TO_CHAR["&sube"]="8838";MAP_ENTITY_TO_CHAR["&supe"]="8839";MAP_ENTITY_TO_CHAR["&oplus"]="8853";MAP_ENTITY_TO_CHAR["&otimes"]="8855";MAP_ENTITY_TO_CHAR["&perp"]="8869";MAP_ENTITY_TO_CHAR["&sdot"]="8901";MAP_ENTITY_TO_CHAR["&lceil"]="8968";MAP_ENTITY_TO_CHAR["&rceil"]="8969";MAP_ENTITY_TO_CHAR["&lfloor"]="8970";MAP_ENTITY_TO_CHAR["&rfloor"]="8971";MAP_ENTITY_TO_CHAR["&lang"]="9001";MAP_ENTITY_TO_CHAR["&rang"]="9002";MAP_ENTITY_TO_CHAR["&loz"]="9674";MAP_ENTITY_TO_CHAR["&spades"]="9824";MAP_ENTITY_TO_CHAR["&clubs"]="9827";MAP_ENTITY_TO_CHAR["&hearts"]="9829";MAP_ENTITY_TO_CHAR["&diams"]="9830";for(var entity in MAP_ENTITY_TO_CHAR){if(!(typeof MAP_ENTITY_TO_CHAR[entity]=='function')&&MAP_ENTITY_TO_CHAR.hasOwnProperty(entity)){MAP_CHAR_TO_ENTITY[MAP_ENTITY_TO_CHAR[entity]]=entity;}}
+for(var c in MAP_CHAR_TO_ENTITY){if(!(typeof MAP_CHAR_TO_ENTITY[c]=='function')&&MAP_CHAR_TO_ENTITY.hasOwnProperty(c)){var ent=MAP_CHAR_TO_ENTITY[c].toLowerCase().substr(1);ENTITY_TO_CHAR_TRIE.put(ent,String.fromCharCode(c));}}})();if(Object.freeze){$.encoder=Object.freeze($.encoder);$.fn.encode=Object.freeze($.fn.encode);}else if(Object.seal){$.encoder=Object.seal($.encoder);$.fn.encode=Object.seal($.fn.encode);}else if(Object.preventExtensions){$.encoder=Object.preventExtensions($.encoder);$.fn.encode=Object.preventExtensions($.fn.encode);}})(jQuery);
+define("lib/jquery-encoder/jquery-encoder-0.1.0", ["lib/jquery-encoder/libs/Class.create"], function(){});
 
-    can.Control.plugin = function (pluginname) {
-        var control = this;
+define('scripts/components/common/util/jquery-encoder',[ 'can', 'jquery', 'lib/jquery-encoder/jquery-encoder-0.1.0', 'scripts/components/common/util/lang' ], function( can, $ ){
 
-        if (!$.fn[pluginname]) {
-            $.fn[pluginname] = function (options) {
+	// This utility wraps the functionality of the jquery-encoder plugin so that 
+	// encoding can be performed on Array and Object values (not just simple primitive 
+	// values like the plugin functions are expecting).
+	//
+	// Right now the only plugin encoding function being called is encodeForHTML,
+	// which (despite the name) does what we want it to do for passing these
+	// values through the openajax hub and into the Checkout application, for example.
+	// If we want to expose additional plugin functions, this can be refactored to allow that.
+	var Encoder = can.Construct.extend({
+		encode: function( value ){
+			if( $.isArray( value )){
+				return this.encodeArray( value );
+			} else if( $.isPlainObject( value )){
+				return this.encodeObject( value );
+			}
+			return this.encodeSimpleValue( value );
+		},
 
-                var args = makeArray(arguments),
-                    //if the arg is a method on this control
-                    isMethod = typeof options == "string" && $.isFunction(control.prototype[options]),
-                    meth = args[0],
-                    returns;
-                this.each(function () {
-                    //check if created
-                    var plugin = can.$(this).control(control);
+		//Don't process Boolean and Number values so they don't get 
+		//cast to Strings unnecessarily.
+		doesNotRequireEncoding: function( value ){
+			return $.isBoolean( value ) || $.isNumber( value );
+		},
 
-                    if (plugin) {
-                        if (isMethod) {
-                            // call a method on the control with the remaining args
-                            returns = plugin[meth].apply(plugin, args.slice(1));
-                        }
-                        else {
-                            // call the plugin's update method
-                            plugin.update.apply(plugin, args);
-                        }
-                    }
-                    else {
-                        //create a new control instance
-                        control.newInstance.apply(control, [this].concat(args));
-                    }
-                });
-                return returns !== undefined ? returns : this;
-            };
-        }
-    }
+		encodeArray: function( arrayValue ){
+			var encodedArray = [],
+				self = this;
 
-    can.Control.prototype.update = function (options) {
-        can.extend(this.options, options);
-        this.on();
-    };
+			$.each( arrayValue, function( index, value ){
+				encodedArray.push( self.encode( value ));
+			});
+			return encodedArray;
+		},
 
-    return can;
+		encodeObject: function( objValue ){
+			var encodedObj = {},
+				self = this;
+
+			$.each( objValue, function( key, value ){
+				encodedObj[ key ] = self.encode( value );
+			});
+			return encodedObj;
+		},
+
+		encodeSimpleValue: function( value ){
+			if( this.doesNotRequireEncoding( value )){
+				return value;
+			} else {
+				return $.encoder.encodeForHTML( value );	
+			}
+		}
+
+	}, {});
+
+	return Encoder;
 });
 define( 'scripts/anyware-widgets/base-widget/base-widget',[
-  'jquery',
-  'can',
-  'scripts/core/container/container',
-  'scripts/components/common/models/configuration-model',
-  'lib/canjs/amd/can/control/plugin',
-  'can-proxy'
-], function( $, can, Container, ConfigurationModel ) {
+	'jquery',
+	'can',
+	'scripts/core/container/container',
+	'scripts/components/common/models/configuration-model',
+	'scripts/components/common/util/options-validator-util',
+	'scripts/components/common/util/jquery-encoder',
+	'lib/canjs/amd/can/control/plugin',
+	'can-proxy'
+], function( $, can, Container, ConfigurationModel, OptionsValidator, Encoder ) {
 
-  //--------------------------------------
-  // Events Dispatched (via DOM):
-  // configured
-  // loaded
-  // ready
-  // resized
-  // errorEvent
-  //--------------------------------------
-  var BaseWidget = can.Control.extend(
+	//--------------------------------------
+	// Events Dispatched (via DOM):
+	// configured
+	// loaded
+	// ready
+	// resized
+	// errorEvent
+	//--------------------------------------
+	var BaseWidget = can.Control.extend(
 
-    //STATIC
-    {
-      //Defined by subclass. Indicates name to be used when instantiating widget as a plugin.
-      pluginName: '',
+		//STATIC
+		{
+			//Defined by subclass. Indicates name to be used when instantiating widget as a plugin.
+			pluginName: '',
 
-      //Defined by subclass. Will be used to determine path to config file.
-      appId: '',
+			//Defined by subclass. Will be used to determine path to config file.
+			appId: '',
 
-      defaults: {
-        //Required
-        clientId: '',
-        countryCode: '',
+			defaults: {
+				//Required
+				clientId: '',
+				countryCode: '',
 
-        //Required for payment-tokenizer
-        acceptedCreditCardTypes: [],
+				//Required for payment-tokenizer
+				acceptedCreditCardTypes: [],
 
-        //Optional
-        languageCode: '',
-        landscape: 'prod', //'prod', 'stage', 'pre-stage', 'dev'
-        marketSegment: 'COM', // 'COM', 'EDU'
-        autoLoad: true,
-        autoRun: true,
-        tunnelPath: '',
-        debug: false,
-        timeout: 15000,
+				//Optional
+				languageCode: '',
+				landscape: 'prod', //'prod', 'stage', 'pre-stage', 'dev'
+				marketSegment: 'COM', // 'COM', 'EDU'
+				autoLoad: true,
+				autoRun: true,
+				tunnelPath: '',
+				debug: false,
+				timeout: 15000,
 
-        //These are the default required options (must be passed in by client).
-        //If a subclass has additional/different required options, it needs to override.
-        requiredOptions: [
-          'clientId',
-          'countryCode'
-        ]
-      }
-    },
+				//These are the default required options (must be passed in by client).
+				//If a subclass has additional/different required options, it needs to override.
+				requiredOptions: [
+					'clientId',
+					'countryCode'
+				]
+			}
+		},
 
-    //PROTOTYPE
-    {
-      //------------------------
-      // Init Functions
-      //------------------------
-      init: function(){
-        this.initStateFlags();
-        this.enforceOptionFormatting();
-        this.checkRequiredOptions();
-        this.loadConfig();
-      },
+		//PROTOTYPE
+		{
+			eventObj: {},
+			//------------------------
+			// Init Functions
+			//------------------------
+			init: function(){
+				this.initStateFlags();
+				this.processOptions();
+				this.loadConfig();
+			},
 
-      initStateFlags: function(){
-        this.isComponentRunning = false;
-      },
+			initStateFlags: function(){
+				this.isConfigLoaded = false; //isConfigured() returns this value
+				this.isComponentRunning = false; //isRunning() returns this value
+			},
 
-      enforceOptionFormatting: function(){
-        this.options.countryCode = this.options.countryCode.toUpperCase();
-        this.options.languageCode = this.options.languageCode.toLowerCase();
-      },
+			processOptions: function(){
+				this.setAdditionalOptions();
+				this.encodeOptions();
+				this.checkRequiredOptions();
+				this.enforceOptionFormatting();
+			},
 
-      checkRequiredOptions: function() {
-        for( var i = 0; i < this.options.requiredOptions.length; i++ ) {
-          var option = this.options.requiredOptions[ i ];
-          if( ( this.options[ option ] ).length < 1 ) {
-            throw new Error( 'Missing Required Option: ' + option );
-          }
-        }
-      },
+			encodeOptions: function(){
+				this.options = Encoder.encode( this.options );
+			},
 
-      //--------------------------------------------
-      //Initialization Step 1: Load Configuration
-      //--------------------------------------------
-      loadConfig: function() {
+			checkRequiredOptions: function() {
+				for( var i = 0; i < this.options.requiredOptions.length; i++ ) {
+					var option = this.options.requiredOptions[ i ];
+					if( ( this.options[ option ] ).length < 1 ) {
+						throw new Error( 'Missing Required Option: ' + option );
+					}
+				}
+			},
 
-        var configParams = {
-          landscape: this.options.landscape,
-          appId: this.constructor.appId,
-          clientId: this.options.clientId,
-          countryCode: this.options.countryCode,
-          marketSegment: this.options.marketSegment,
-          isLocal : this.options.isLocal,
-          debug : this.options.debug
-        };
+			enforceOptionFormatting: function(){
+				this.options.countryCode = this.options.countryCode.toUpperCase();
+				this.options.languageCode = this.options.languageCode.toLowerCase();
+			},
 
-        this.configurationModel = new ConfigurationModel( configParams );
-        this.configurationModel.load( this, this.proxy( 'onConfigLoaded' ), this.proxy( 'onConfigError' ) );
-      },
+			setAdditionalOptions: function(){
+				//Override as necessary
+			},
 
-      onConfigLoaded: function() {
-        var configurationData = this.configurationModel.attr();
-        this.triggerEvent( 'configured', { configurationData: configurationData } );
+			//--------------------------------------------
+			//Initialization Step 1: Load Configuration
+			//--------------------------------------------
+			loadConfig: function() {
+				var configParams = {
+					landscape: this.options.landscape,
+					appId: this.constructor.appId,
+					clientId: this.options.clientId,
+					countryCode: this.options.countryCode,
+					marketSegment: this.options.marketSegment,
+					isLocal : this.options.isLocal,
+					debug : this.options.debug
+				};
 
-        if( this.options.autoLoad ) {
-          this.load();
-        }
-      },
+				this.configurationModel = new ConfigurationModel( configParams );
+				this.configurationModel.load( this, this.proxy( 'onConfigLoaded' ), this.proxy( 'onConfigError' ) );
+			},
 
-      onConfigError: function( errorObj ) {
-        this.triggerEvent( 'errorEvent', errorObj );
-      },
+			onConfigLoaded: function() {
+				var configurationData = this.configurationModel.attr();
+				this.isConfigLoaded = true;
+				this.triggerEvent( 'configured', { configurationData: configurationData } );
 
-      //--------------------------------------------
-      //Initialization Step 2: Load App
-      //--------------------------------------------
-      load: function() {
-        if( !this.container ) {
-          this.container = this.createContainer();
-          this.container.loadComponent( this.proxy( 'onComponentLoaded' ) );
-        }
-        else {
-          throw new Error( 'Load requested, but component is already loaded.' );
-        }
-      },
+				this.options = OptionsValidator.validateOptions( this.options, configurationData );
+				
+				if( this.options.autoLoad ) {
+					this.load();
+				}
+			},
 
-      //Deprecated (in favor of isLoaded)! Make sure nobody is using this before pulling it out
-      loaded: function() {
-        return this.isLoaded();
-      },
+			onConfigError: function( errorObj ) {
+				this.configErrorOccurred = true;
+				this.triggerEvent( 'errorEvent', errorObj );
+			},
 
-      isLoaded: function() {
-        var loaded = false;
-        if( this.container ){
-          loaded = this.container.isConnected();
-        }
-        return loaded;
-      },
+			isConfigured: function(){
+				return this.isConfigLoaded;
+			},
 
-      onComponentLoaded: function() {
-        this.triggerEvent( 'loaded' );
-        this.subscribeToHubEvents();
-        if( this.options.autoRun ) {
-          this.run();
-        }
-      },
+			//--------------------------------------------
+			//Initialization Step 2: Load App
+			//--------------------------------------------
+			load: function() {
+				if( !this.container ) {
+					this.container = this.createContainer();
+					this.container.loadComponent( this.proxy( 'onComponentLoaded' ) );
+					this.container.subscribe( '**', this.proxy( 'globalHandler' ) );
+				}
+				else {
+					throw new Error( 'Load requested, but component is already loaded.' );
+				}
+			},
 
-      createContainer: function() {
-        var appId = this.constructor.appId,
-          element = this.element[0],
-          appUrl = this.configurationModel.attr( 'appUrl' ),
-          tunnelPath = this.options.tunnelPath,
-          iframeAttrs = this.options.iframeAttrs,
-          timeout = this.options.timeout,
-          container = new Container( appId, element, appUrl, tunnelPath, iframeAttrs, timeout );
+			//Deprecated (in favor of isLoaded)! Make sure nobody is using this before pulling it out
+			loaded: function() {
+				return this.isLoaded();
+			},
 
-        container = this.setContainerListeners( container );
-        return container;
-      },
+			isLoaded: function() {
+				var loaded = false;
+				if( this.container ){
+					loaded = this.container.isConnected();
+				}
+				return loaded;
+			},
 
-      //--------------------------------------------
-      //Initialization Step 3: Run App
-      //--------------------------------------------
-      run: function() {
-        if( !this.isComponentRunning ) {
-          if( this.isLoaded() ) {
-            this.initializeComponent();
-          }
-        }
-        else {
-          throw new Error( 'Run requested, but component is already running.' );
-        }
-      },
+			onComponentLoaded: function() {
+				this.triggerEvent( 'loaded' );
+				this.subscribeToHubEvents();
+				if( this.options.autoRun ) {
+					this.run();
+				}
+			},
 
-      isRunning: function(){
-        return this.isComponentRunning;
-      },
+			createContainer: function() {
+				var appId = this.constructor.appId,
+					element = this.element[0],
+					appUrl = this.configurationModel.attr( 'appUrl' ),
+					tunnelPath = this.options.tunnelPath,
+					iframeAttrs = this.options.iframeAttrs,
+					timeout = this.options.timeout,
+					container = new Container( appId, element, appUrl, tunnelPath, iframeAttrs, timeout );
 
-      initializeComponent: function() {
-        if( this.isLoaded() ) {
-          var data = this.getComponentData();
-          this.container.publish( 'initialize', data );
-          this.isComponentRunning = true;
-        }
-      },
+				this.setContainerListeners();
+				return container;
+			},
 
-      getComponentData: function() {
-        return {
-          initOptions: this.options,
-          configuration: this.configurationModel.attr()
-        };
-      },
+			subscribe: function( event, callback ) {
+				this.eventObj[event] = this.eventObj[event] || [];
+				this.eventObj[event].push( callback ); 
+			},
 
-      //--------------------------
-      //Widget Lifecycle Methods
-      //--------------------------
-      destroy: function() {
-        if( this.isLoaded() ) {
-          this.container.unloadComponent();
-        }
-        can.Control.prototype.destroy.call( this );
-      },
+			globalHandler: function( ev, data ) {
+				//get the method name
+				var evNamespaceArray = ev.split( "." ),
+					eventName = evNamespaceArray[ evNamespaceArray.length-1 ];	
+				if( $.isArray(this.eventObj[eventName]) ) {
+					this.triggerSubscribe( eventName, data );
+				} else {
+					this.triggerDefault( eventName, data );
+				}	 
+			},
 
-      unload: function() {
-        if( this.isLoaded() ){
-          this.container.unloadComponent();
-          this.element.empty().trigger( 'unloaded' );
-        }
-      },
+			triggerSubscribe: function( eventName, data ) {
+				var handlerArr = this.eventObj[eventName];
+				for(var i= 0; i<handlerArr.length; i++) {
+					if( typeof handlerArr[i] === 'function' ) {
+						//canjs proxy takes care its context.
+						handlerArr[i]( eventName, data );	
+					} else{
+						this.triggerDefault( eventName, data );	
+					}  
+				}
+			},
 
-      reload: function() {
-        if( this.isLoaded() ){
-          this.container.unloadComponent();
-          this.container.loadComponent( this.proxy( 'componentReloaded' ) );
-        }
-      },
+			triggerDefault: function(eventName, data){
+				this.triggerEvent( eventName, data );
+			},
 
-      componentReloaded: function(){
-        //If the component was running before we reloaded it,
-        //we need to call run so it is running again
-        if( this.isComponentRunning ){
-          this.isComponentRunning = false;
-          this.run();
-        }
-      },
+			//--------------------------------------------
+			//Initialization Step 3: Run App
+			//--------------------------------------------
+			run: function() {
+				if( !this.isComponentRunning ) {
+					if( this.isLoaded() ) {
+						this.initializeComponent();
+					}
+				}
+				else {
+					throw new Error( 'Run requested, but component is already running.' );
+				}
+			},
 
-      //--------------------------
-      //Event Listeners
-      //--------------------------
-      subscribeToHubEvents : function() {
-        // can be overridden if necessary in widgets
-      },
+			isRunning: function(){
+				return this.isComponentRunning;
+			},
 
-      setContainerListeners: function( container ){
-        container.subscribe( 'sizeChange', this.proxy( 'onSizeChange' ) );
-        container.subscribe( 'applicationReady', this.proxy( 'onApplicationReady' ) );
-        container.subscribe( 'formError', this.proxy( 'onFormError' ) );
-        container.subscribe( 'validationError', this.proxy( 'onValidationError' ) );
+			initializeComponent: function() {
+				if( this.isLoaded() ) {
+					var data = this.getComponentData();
+					this.container.publish( 'initialize', data );
+					this.isComponentRunning = true;
+				}
+			},
 
-        return container;
-      },
+			getComponentData: function() {
+				return {
+					initOptions: this.options,
+					configuration: this.configurationModel.attr()
+				};
+			},
 
-      onSizeChange: function( event, data ){
-        this.triggerEvent( 'resized', data );
-      },
+			//--------------------------
+			//Widget Lifecycle Methods
+			//--------------------------
+			destroy: function() {
+				if( this.isLoaded() ) {
+					this.container.unloadComponent();
+				}
+				can.Control.prototype.destroy.call( this );
+			},
 
-      onApplicationReady: function(){
-        this.triggerEvent( 'ready' );
-      },
+			unload: function() {
+				if( this.isLoaded() ){
+					this.container.unloadComponent();
+					this.element.empty().trigger( 'unloaded' );
+				}
+			},
 
-      onFormError: function( event, data ){
-        var errorType = 'FORM_ERROR';
-        this.triggerEvent( 'errorEvent', { errorType: errorType,
-          errors: data });
-      },
+			reload: function() {
+				if( this.isLoaded() ){
+					this.container.unloadComponent();
+					this.container.loadComponent( this.proxy( 'componentReloaded' ) );
+				}
+			},
 
-      onValidationError: function( event, data ){
-        var errorType = 'VALIDATION_ERROR';
-        this.triggerEvent( 'errorEvent', { errorType: errorType,
-          errors: data });
-      },
+			componentReloaded: function(){
+				//If the component was running before we reloaded it, 
+				//we need to call run so it is running again
+				if( this.isComponentRunning ){
+					this.isComponentRunning = false;
+					this.run();
+				}
+			},
 
-      triggerEvent: function( event, data ){
-        if( this.element ){
-          this.element.trigger( event, data );
-        }
-      },
+			//--------------------------
+			//Event Listeners
+			//--------------------------
+			subscribeToHubEvents : function() {
+				// can be overridden if necessary in widgets
+			},
 
-      //---------------------------------------------------------
-      // NOTE! appUrl is dynamically generated from a
-      // combination of initOptions (landscape), and configuration
-      // parameters (baseUrl + appPath).
-      // Accessing/modifying this value is only intended for internal use.
-      //----------------------------------------------------------
-      __getAppUrl: function(){
-        return this.configurationModel.attr( 'appUrl' );
-      },
+			setContainerListeners: function(){
+				//this.subscribe( 'applicationReady', this.proxy( 'onApplicationReady' ) );
+				//this.subscribe( 'resized', this.proxy( 'onSizeChange' ) );
+				this.subscribe( 'formError', this.proxy( 'onFormError' ) );
+				this.subscribe( 'validationError', this.proxy( 'onValidationError' ) );
+			},
 
-      __setAppUrl: function( appUrl ){
-        this.configurationModel.attr( 'appUrl', appUrl );
-      }
-    }
-  );
+			//Dispatched when xdomain connection is established.
 
-  return BaseWidget;
+			onFormError: function( event, data ){
+				var errorType = 'FORM_ERROR';
+				this.triggerEvent( 'errorEvent', { errorType: errorType,
+					errors: data });
+			},
+
+			onValidationError: function( event, data ){
+				var errorType = 'VALIDATION_ERROR';
+				this.triggerEvent( 'errorEvent', { errorType: errorType,
+					errors: data });
+			},
+
+			triggerEvent: function( event, data ){
+				if( this.element ){
+					this.element.trigger( event, data );
+				}
+			},
+
+			//---------------------------------------------------------
+			// NOTE! appUrl is dynamically generated from a 
+			// combination of initOptions (landscape), and configuration
+			// parameters (baseUrl + appPath).
+			// Accessing/modifying this value is only intended for internal use. 
+			//----------------------------------------------------------
+			__getAppUrl: function(){
+				return this.configurationModel.attr( 'appUrl' );
+			},
+
+			__setAppUrl: function( appUrl ){
+				this.configurationModel.attr( 'appUrl', appUrl );
+			}
+		}
+	);
+
+	return BaseWidget;
 
 } );
+define( 'tokenizer',[
+	'jquery',
+	'scripts/anyware-widgets/base-widget/base-widget',
+	'lib/canjs/amd/can/control/plugin',
+	'can-super'
+], function( $, BaseWidget ) {
 
+	var TokenizerWidget = BaseWidget.extend(
+
+		//Static
+		{
+			pluginName: 'anyware_payment_tokenizer',
+			appId: 'tokenizer'
+		},
+
+		//Prototype
+		{
+			//Add 'acceptedCreditCardTypes to requiredOptions before doing the check
+			checkRequiredOptions: function(){
+				this.options.requiredOptions.push( 'acceptedCreditCardTypes' );
+				this._super();
+			},
+
+			//---- Payment Tokenizer API ----------------------------
+			setAddress : function( address ){
+				this.container.publish( 'setAddress', address );
+			},
+
+			getToken : function(){
+				this.container.publish( 'getToken' );
+			},
+
+			clearData : function(){
+				this.container.publish( 'clearData' );
+			},
+
+			//---- XDomain Event Handlers ----------------------------
+			subscribeToHubEvents: function() {
+				var self = this;
+
+				this.subscribe( 'tokenErrorReceived', function( event, data ){
+					self.onTokenErrorReceived( event, data );
+				});
+			},
+
+			onTokenErrorReceived: function( event, data ){
+				data.errorType = 'TOKENIZATION_ERROR';
+				$( this.element ).trigger( 'errorEvent', data );
+			}
+		}
+	);
+
+	return TokenizerWidget;
+
+} );
 
 
 /*!
@@ -11463,570 +13482,844 @@ define( 'scripts/anyware-widgets/base-widget/base-widget',[
 * Copyright (c) 2013 Bitovi
 * Licensed MIT
 */
-define('can-super',['can/util/library', 'can/construct'], function (can, Construct) {
+define('can/util/string/deparam',['can/util/library', 'can/util/string'], function (can) {
 
-    // tests if we can get super in .toString()
-    var isFunction = can.isFunction,
-
-        fnTest = /xyz/.test(function () {
-            xyz;
-        }) ? /\b_super\b/ : /.*/;
-
-    // overwrites a single property so it can still call super
-    can.Construct._overwrite = function (addTo, base, name, val) {
-        // Check if we're overwriting an existing function
-        addTo[name] = isFunction(val) && isFunction(base[name]) && fnTest.test(val) ? (function (name, fn) {
-            return function () {
-                var tmp = this._super,
-                    ret;
-
-                // Add a new ._super() method that is the same method
-                // but on the super-class
-                this._super = base[name];
-
-                // The method only need to be bound temporarily, so we
-                // remove it when we're done executing
-                ret = fn.apply(this, arguments);
-                this._super = tmp;
-                return ret;
-            };
-        })(name, val) : val;
-    }
-    // overwrites an object with methods, sets up _super
-    //   newProps - new properties
-    //   oldProps - where the old properties might be
-    //   addTo - what we are adding to
-    can.Construct._inherit = function (newProps, oldProps, addTo) {
-        addTo = addTo || newProps
-        for (var name in newProps) {
-            can.Construct._overwrite(addTo, oldProps, name, newProps[name]);
-        }
-    }
-
-    return can;
-});
-define( 'tokenizer',[
-  'jquery',
-  'scripts/anyware-widgets/base-widget/base-widget',
-  'lib/canjs/amd/can/control/plugin',
-  'can-super'
-], function( $, BaseWidget ) {
-
-  var TokenizerWidget = BaseWidget.extend(
-
-    //Static
-    {
-      pluginName: 'anyware_payment_tokenizer',
-      appId: 'tokenizer'
-    },
-
-    //Prototype
-    {
-      //Add 'acceptedCreditCardTypes to requiredOptions before doing the check
-      checkRequiredOptions: function(){
-        this.options.requiredOptions.push( 'acceptedCreditCardTypes' );
-        this._super();
-      },
-
-      //---- Payment Tokenizer API ----------------------------
-      setAddress : function( address ){
-        this.container.publish( 'setAddress', address );
-      },
-
-      getToken : function(){
-        this.container.publish( 'getToken' );
-      },
-
-      clearData : function(){
-        this.container.publish( 'clearData' );
-      },
-
-      //---- XDomain Event Handlers ----------------------------
-      subscribeToHubEvents: function() {
-        var self = this;
-
-        this.container.subscribe( 'tokenReceived', function( event, data ){
-          self.onTokenReceived( event, data );
-        });
-
-        this.container.subscribe( 'tokenErrorReceived', function( event, data ){
-          self.onTokenErrorReceived( event, data );
-        });
-      },
-
-      onTokenReceived: function( event, data ){
-        $( this.element ).trigger( 'tokenReceived', data );
-      },
-
-      onTokenErrorReceived: function( event, data ){
-        data.errorType = 'TOKENIZATION_ERROR';
-        $( this.element ).trigger( 'errorEvent', data );
-      }
-    }
-  );
-
-  return TokenizerWidget;
-
-} );
-
-
-define( 'checkout',[
-  'jquery',
-  'can',
-  'scripts/anyware-widgets/base-widget/base-widget',
-  'lib/canjs/amd/can/control/plugin',
-  'can-proxy',
-  'can-super'
-], function( $, can, BaseWidget ) {
-
-  var CheckoutWidget = BaseWidget.extend(
-
-    //Static
-    {
-      pluginName: 'anyware_checkout',
-      appId: 'checkout',
-
-      // EVENTS
-      USER_AUTHENTICATED_EVENT : 'userAuthenticated',
-      ORDER_VALIDATED_EVENT : 'orderValidated',
-      ORDER_COMPLETED_EVENT : 'orderCompleted',
-      ORDER_STATUS_CHANGE_EVENT : 'orderStatusChanged',
-
-      ERROR_EVENT : 'errorEvent',
-
-      // THROWN ERRORS
-      ERROR_ORDER_NOT_VALIDATED : 'Error! : Order Not In VALIDATED State!'
-    },
-
-    //Prototype
-    {
-      order: {},
-
-      //--------- Public Methods --------------------------
-      orderValid: function(){
-        return( this.order !== undefined && this.order.status === 'VALIDATED' );
-      },
-
-      validateOrder: function(){
-        if( this.orderValid() ){
-          this.orderValidated( {}, { order: this.order });
-        }
-        else {
-          this.container.publish( 'validateOrder' );
-        }
-      },
-
-      placeOrder: function() {
-        if( this.orderValid() ){
-          this.container.publish( 'placeOrder' );
-        }
-        else {
-          throw new Error( this.constructor.ERROR_ORDER_NOT_VALIDATED );
-        }
-      },
-
-      requiresRedirect: function(){
-        var configurationData = this.configurationModel.attr();
-        return ( !!configurationData.redirectRequired );
-      },
-
-      getRedirectUrl: function(){
-        return this.redirectUrl;
-      },
-
-      setItems: function( items ){
-        this.options.items = items;
-        if( this.isComponentRunning ){
-          this.reload();
-        }
-      },
-
-      //--------- CrossDomain Event Handlers ----------------
-      subscribeToHubEvents : function() {
-        this.container.subscribe( 'userAuthenticated', this.proxy( 'userAuthenticated' ));
-        this.container.subscribe( 'orderStatusChange', this.proxy( 'orderStatusChange' ));
-        this.container.subscribe( 'orderValidated', this.proxy( 'orderValidated' ));
-        this.container.subscribe( 'errorEvent', this.proxy( 'onError' ));
-        this.container.subscribe( 'orderCompleted', this.proxy( 'orderCompleted' ));
-      },
-
-      userAuthenticated: function( ev, data ){
-        this.triggerEvent( this.constructor.USER_AUTHENTICATED_EVENT, data );
-      },
-
-      orderStatusChange: function( ev, data ){
-        this.order = data.order;
-        this.triggerEvent( this.constructor.ORDER_STATUS_CHANGE_EVENT, data );
-      },
-
-      orderValidated: function( ev, data ){
-        this.order = data.order;
-        this.triggerEvent( this.constructor.ORDER_VALIDATED_EVENT, data );
-      },
-
-      onError: function( ev, errorObj ){
-        this.triggerEvent( this.constructor.ERROR_EVENT, errorObj );
-      },
-
-      orderCompleted: function( ev, data ){
-        this.order = data.order;
-        this.triggerEvent( this.constructor.ORDER_COMPLETED_EVENT, data );
-
-        this.unload();
-      },
-
-      //---------------------------------------------------------
-      // Redirect Functionality
-      // When 'redirectRequired' is true in config file, it means
-      // that instead of loading the Anyware app, we'll redirect
-      // to the URL indicated by 'redirectUrl'.
-      // This 'redirectUrl' may be be a simple string or a complex
-      // object keyed by various initOptions (such as marketSegment)
-      //----------------------------------------------------------
-
-      //Override base-widget to account for Redirect functionality
-      onConfigLoaded: function(){
-        this.checkForRedirect();
-        this._super();
-      },
-
-      //Override base-widget to account for Redirect functionality
-      load: function() {
-        if( this.requiresRedirect() ){
-          if( this.options.autoRun ){
-            this.run();
-          }
-        } else {
-          this._super();
-        }
-      },
-
-      //Override base-widget to account for Redirect functionality
-      run: function(){
-        if( this.requiresRedirect() ){
-          this.performRedirect();
-        } else {
-          this._super();
-        }
-      },
-
-      //checkForRedirect is called when config data is loaded.
-      //If this is a redirect scenario, will set redirectUrl.
-      //Otherwise, redirectUrl will be undefined.
-      checkForRedirect: function(){
-        if( this.requiresRedirect() ){
-          this.setRedirectUrl();
-        }
-      },
-
-      setRedirectUrl: function(){
-        this.redirectOptions = {
-          marketSegment: this.getRedirectMarketSegment(),
-          languageCode: this.getRedirectLanguageCode()
+    // ## deparam.js  
+    // `can.deparam`  
+    // _Takes a string of name value pairs and returns a Object literal that represents those params._
+    var digitTest = /^\d+$/,
+        keyBreaker = /([^\[\]]+)|(\[\])/g,
+        paramTest = /([^?#]*)(#.*)?$/,
+        prep = function (str) {
+            return decodeURIComponent(str.replace(/\+/g, " "));
         };
 
-        var configurationData = this.configurationModel.attr(),
-          urlData = configurationData.redirectUrl,
-          urlStr = this.parseRedirectUrl( urlData );
 
-        this.redirectUrl = this.processRedirectUrl( urlStr );
-      },
+    can.extend(can, {
 
-      //The value for 'redirectUrl' in config data might either be a simple string
-      //or an object keyed by initOptions (stored in this.redirectOptions).
-      //This function parses that 'redirectUrl' value and ultimately returns the proper URL string.
-      parseRedirectUrl: function( urlData ){
-        if( $.isString( urlData ) ){
-          return urlData;
-        } else {
-          for (var prop in urlData ){
-            return this.parseRedirectUrl( urlData[ prop ][ this.redirectOptions[ prop ] ] );
-          }
+        deparam: function (params) {
+
+            var data = {},
+                pairs, lastPart;
+
+            if (params && paramTest.test(params)) {
+
+                pairs = params.split('&'),
+
+                can.each(pairs, function (pair) {
+
+                    var parts = pair.split('='),
+                        key = prep(parts.shift()),
+                        value = prep(parts.join("=")),
+                        current = data;
+
+                    if (key) {
+                        parts = key.match(keyBreaker);
+
+                        for (var j = 0, l = parts.length - 1; j < l; j++) {
+                            if (!current[parts[j]]) {
+                                // If what we are pointing to looks like an `array`
+                                current[parts[j]] = digitTest.test(parts[j + 1]) || parts[j + 1] == "[]" ? [] : {};
+                            }
+                            current = current[parts[j]];
+                        }
+                        lastPart = parts.pop();
+                        if (lastPart == "[]") {
+                            current.push(value);
+                        } else {
+                            current[lastPart] = value;
+                        }
+                    }
+                });
+            }
+            return data;
         }
-      },
+    });
+    return can;
+});
+define('scripts/components/common/util/page-util',[
+	'jquery',
+	'can',
+	'can/util/string/deparam'
+], function( $, can ){
 
-      //Any vendor-specific processing that needs to happen, happens here.
-      //Right now, the only possible value for 'redirectVendor' is 'DIGITAL_RIVER',
-      //so that's the only vendor being accounted for here.
-      processRedirectUrl: function( url ){
-        var configurationData = this.configurationModel.attr(),
-          vendor = configurationData.redirectVendor,
-          items = this.options.items,
-          processedUrl = url;
+	var PageUtil = {
 
-        if( vendor === 'DIGITAL_RIVER' ){
-          if( items && items.length === 1 ){
-            var productKey = items[ 0 ].productKey;
-            processedUrl = url.replace( '<product_key>', productKey );
-          } else {
-            throw new Error( 'Item Not Found or More than One Item Found' );
-          }
-        }
-        return processedUrl;
-      },
+		getUrlParameter: function( param ){
+			var urlParamString = window.location.search.substring(1),
+				paramPairs = urlParamString.split( '&' ),
+				parameter;
 
-      getRedirectMarketSegment: function(){
-        return this.options.marketSegment;
-      },
+			for( var i=0; i < paramPairs.length; i++ ){
 
-      getRedirectLanguageCode: function() {
-        var configurationData = this.configurationModel.attr(),
-          languageCode = this.options.languageCode,
-          supportedLanguages = configurationData.supportedLanguages,
-          defaultLanguage = configurationData.defaultLanguage;
+				parameter = paramPairs[ i ].split( '=' );
+				if( parameter[ 0 ] === param ){
+					return parameter[ 1 ];
+				}
+			}
+		},
 
-        if( !this.isSupportedLanguage( languageCode, supportedLanguages ) ) {
-          languageCode = defaultLanguage;
-        }
-        return languageCode;
-      },
+		getUrlParameters: function(){
+			var urlParamString = window.location.search.substring(1);
+			return can.deparam( urlParamString );
+		},
 
-      isSupportedLanguage: function( languageCode, supportedLanguages ) {
-        var languages = can.makeArray( supportedLanguages );
-        return ( $.inArray( languageCode, languages ) > -1 );
-      },
+		addParamToUrl: function( url, name, value ){
+			var prefix, suffix, urlArray, fragment;
 
-      //Called from the 'run' function when requiresRedirect is true
-      performRedirect: function(){
-        var redirectUrl = this.getRedirectUrl();
-        if( this.options.autoRedirect ){
-          this.redirectToUrl( redirectUrl );
-        } else {
-          this.triggerEvent( 'redirectToCheckout', redirectUrl );
-        }
-      },
+			// if param already exists modify value
+			if( url.indexOf( name + '=' ) >= 0 ) {
+				prefix = url.substring( 0, url.indexOf( name ));
+				suffix = url.substring( url.indexOf( name ));
+				suffix = suffix.substring( suffix.indexOf( '=' ) + 1 );
+				suffix = (suffix.indexOf( '&' ) >= 0) ? suffix.substring( suffix.indexOf( '&' )) : '';
+				url = prefix + name + '=' + value + suffix;
+			}
+			else {
+				urlArray = url.split( '#' );
+				url = urlArray[ 0 ];
+				fragment = urlArray[ 1 ] ? '#' + urlArray[ 1 ] : '';
 
-      redirectToUrl: function( url ){
-        window.location = url;
-      }
-    }
-  );
+				url += ( url.indexOf( '?' ) < 0 ) ? '?' : '&'; 
+				url += name + '=' + value;
+				url += fragment;
+			}
 
-  return CheckoutWidget;
+			return url;
+		},
+
+		removeParamFromUrl: function( url, name ){
+			var paramIndex = this.getParamIndex( url, name );
+			if( paramIndex > -1 ){
+				var prefix = url.substring( 0, paramIndex - 1 ),
+					suffix = url.substring( paramIndex ),
+					paramDelimiterIndex = suffix.indexOf( '&' ),
+					hashDelimiterIndex = suffix.indexOf( '#' ),
+					delimiter,
+					suffixStartIndex;
+
+				if( paramDelimiterIndex > -1 ){
+					delimiter = url.charAt( paramIndex - 1 );
+					suffixStartIndex = paramDelimiterIndex + 1;
+				} else if ( hashDelimiterIndex > -1 ){
+					delimiter = "#";
+					suffixStartIndex = hashDelimiterIndex + 1;
+				} 
+				suffix = suffixStartIndex ? delimiter + suffix.substring( suffixStartIndex ) : '';
+				url = prefix + suffix;
+			}
+
+			return url;
+		},
+
+		//Only return the paramIndex when the param + '=' is found in the url
+		//AND the character preceding the param is a valid delimiter ('?', '&', or '#').
+		//this prevents a false positive result (for example, for 'homepage' when param name is 'page')
+		getParamIndex: function( url, name ){
+			var index = -1,
+				validDelimiters = [ '?', '&', '#' ],
+				paramIndex = url.indexOf( name + '=' ),
+				remainder = url.substring( paramIndex ),
+				delimiter = url.charAt( paramIndex-1 ),
+				delimiterIndex = validDelimiters.indexOf( delimiter );
+
+			if( paramIndex > -1 ){
+				if( delimiterIndex > -1 ){
+					index = paramIndex;
+				} 
+			}
+			return index;
+		}
+
+	};
+
+	return PageUtil;
+});
+
+define( 'checkout',[
+	'jquery',
+	'can',
+	'scripts/anyware-widgets/base-widget/base-widget',
+	'scripts/components/common/util/page-util',
+	'lib/canjs/amd/can/control/plugin',
+	'scripts/components/common/util/lang',
+	'can-proxy',
+	'can-super'
+], function( $, can, BaseWidget, PageUtil ) {
+
+	var CheckoutWidget = BaseWidget.extend(
+
+		//Static
+		{
+			pluginName: 'anyware_checkout',
+			appId: 'checkout',
+
+			// EVENTS
+			ORDER_VALIDATED_EVENT : 'orderValidated',
+			ORDER_COMPLETED_EVENT : 'orderCompleted',
+			ORDER_STATUS_CHANGE_EVENT : 'orderStatusChanged',
+			PAYMENT_METHOD_SELECTED_EVENT: 'paymentMethodSelected',
+			SIGN_OUT_REQUESTED: 'signOutRequested',
+			CANCEL_PAGE_REQUESTED: 'cancelPageRequested',
+			READY_EVENT : 'ready',
+
+			// THROWN ERRORS
+			ERROR_ORDER_NOT_VALIDATED : 'Error! : Order Not In VALIDATED State!',
+
+			UNIVERSAL_APP_PATH: '/anyware/latest/universal/checkout/index.html',
+			UNIVERSAL_APP_PATH_LOCAL: '/app/universal/checkout/index.html',
+
+			ORDER_STATUS_VALIDATED: 'VALIDATED'
+		},
+
+		//Prototype
+		{
+			order: {},
+
+			//--------- Init -----------------------------------
+			setAdditionalOptions: function(){
+				var cartId, payPal;
+
+				//payPalReturnUrl
+				if( !$.isValue( this.options.payPalReturnUrl )){
+					this.options.payPalReturnUrl = window.location.href;
+				}
+
+				//cartId
+				if( !$.isValue( this.options.cartId )){
+					cartId = PageUtil.getUrlParameter( 'cartId' );
+					if( $.isValue( cartId )){
+						this.options.cartId = cartId;
+					}
+				}
+
+				//paypal
+				payPal = PageUtil.getUrlParameter( 'paypal' );
+				if( $.isValue( payPal )){
+					this.options.paypal = payPal;
+				}
+			},
+
+			//--------- Public Methods --------------------------
+			orderValid: function(){
+				return( this.order !== undefined && this.order.status === this.constructor.ORDER_STATUS_VALIDATED );
+			},
+
+			validateOrder: function(){
+				if( this.orderValid() ){
+					this.orderValidated( {}, { order: this.order });
+				}
+				else {
+					this.container.publish( 'validateOrder' );
+				}
+			},
+
+			placeOrder: function() {
+				if( this.orderValid() ){
+					this.container.publish( 'placeOrder' );
+				}
+				else {
+					throw new Error( this.constructor.ERROR_ORDER_NOT_VALIDATED );
+				}
+			},
+
+			requiresRedirect: function(){
+				var configurationData = this.configurationModel.attr();
+				return ( !!configurationData.redirectRequired );
+			},
+
+			getRedirectUrl: function(){
+				return this.redirectUrl;
+			},
+
+			setItems: function( items ){
+				this.options.items = items;
+				this.options.cartId = null; //no longer valid since we changed the items.
+				if( this.isComponentRunning ){
+					this.reload();
+				}
+			},
+
+			updatePayPalReturnUrl: function( payPalReturnUrl ){
+				this.options.payPalReturnUrl = payPalReturnUrl || window.location.href;
+			},
+
+			//--------- CrossDomain Event Handlers ----------------
+			subscribeToHubEvents : function() {
+				this.subscribe( 'orderStatusChange', this.proxy( 'orderStatusChange' ));
+				this.subscribe( 'orderValidated', this.proxy( 'orderValidated' ));
+				this.subscribe( 'orderCompleted', this.proxy( 'orderCompleted' ));
+				this.subscribe( 'paymentMethodSelected', this.proxy( 'paymentMethodSelected' ));
+				this.subscribe( 'uiReady', this.proxy( 'uiReady' ));
+				this.subscribe( 'payPalFlowRequested', this.proxy( 'payPalFlowRequested' ));
+				this.subscribe( 'signOutRequested', this.proxy( 'signOutRequested' ));
+				this.subscribe( 'cancelPageRequested', this.proxy( 'cancelPageRequested' ));
+			},
+
+			orderStatusChange: function( ev, data ){
+				this.order = data.order;
+				this.triggerEvent( this.constructor.ORDER_STATUS_CHANGE_EVENT, data );
+			},
+
+			orderValidated: function( ev, data ){
+				this.order = data.order;
+				this.triggerEvent( this.constructor.ORDER_VALIDATED_EVENT, data );
+			},
+
+			orderCompleted: function( ev, data ){
+				this.order = data.order;
+				this.triggerEvent( this.constructor.ORDER_COMPLETED_EVENT, data );
+
+				this.unload();
+			},
+
+			paymentMethodSelected: function( ev, data ){
+				this.order = data.order;
+				this.triggerEvent( this.constructor.PAYMENT_METHOD_SELECTED_EVENT, data );
+			},
+
+			uiReady: function( ev ){
+				this.triggerEvent( this.constructor.READY_EVENT );
+			},
+
+			payPalFlowRequested: function( ev, data ){
+				var redirectUrl = data.redirectUrl;
+				window.location.href = redirectUrl;
+			},
+
+			signOutRequested: function( ev, data ){
+				this.triggerEvent( this.constructor.SIGN_OUT_REQUESTED, data );
+			},
+
+			cancelPageRequested: function( ev, data ){
+				this.triggerEvent( this.constructor.CANCEL_PAGE_REQUESTED, data );			
+			},
+
+			//Override base-widget to account for non-embedded (Redirect and Universal) flows:
+			//Now that configuration data is loaded, 
+			//1. Check to see if this is a third-party redirect flow (and set up the redirectUrl accordingly if so),
+			//2. Check to see if there's a pending Universal request (meaning that startUniversalCheckout was 
+			//called before configuration data finished loading). If so, will call startUniversalCheckout again.
+			//
+			//Note that things need to happen in this order because (potential refactoring opportunity if this is too brittle):
+			//1. checkForRedirect - sets the redirect URL, if applicable
+			//2. super onConfigLoaded - sets isConfigLoaded flag to true (referenced by startUniversalCheckout),
+			//and also ultimately will perform the redirect (if autoRun is true and there's a redirectUrl).
+			//3. checkForPendingUniversalRequest - references the flag set in super onConfigLoaded.
+			onConfigLoaded: function(){
+				this.checkForRedirect();
+				this._super(); 
+				this.checkForPendingUniversalRequest();
+			},
+
+			//Override base-widget to account for non-embedded (Redirect and Universal) flows:
+			//If this is the embedded flow, will call _super (which will load the Checkout app into the iframe).
+			//If this is Universal flow, do nothing (wait for startUniversalCheckout to be called).
+			//Otherwise this is a third-party (non-Universal) redirect flow, in which case we can move straight
+			//onto run if autoRun is true (since we can skip the load step for this flow).
+			load: function() {
+				if( this.isEmbedded() ){	
+					this._super();
+				} else if( !this.isUniversalMode() && this.options.autoRun ){
+					this.run();
+				}
+			},
+
+			//Override base-widget to account for Redirect functionality
+			run: function(){
+				if( this.requiresRedirect() ){
+					this.performRedirect();
+				} else {
+					this._super();
+				}
+			},
+
+			//used to distinguish the embedded Checkout flow 
+			//(where Checkout is loaded into an iframe)
+			//from flows where user is redirected 
+			//(either to a third-party vendor like Digital River, or to Universal)
+			isEmbedded: function(){
+				return ( !this.requiresRedirect() && !this.isUniversalMode() );
+			},
+
+
+			//---------------------------------------------------------
+			// (Third-Party Store) Redirect Functionality (eg, Digital River)
+			// When 'redirectRequired' is true in config file, it means
+			// that instead of loading the Anyware app, we'll redirect
+			// to the URL indicated by 'redirectUrl'. 
+			// This 'redirectUrl' may be be a simple string or a complex
+			// object keyed by various initOptions (such as marketSegment)
+			//----------------------------------------------------------
+
+			//checkForRedirect is called when config data is loaded.
+			//If this is a redirect scenario, will set redirectUrl.
+			//Otherwise, redirectUrl will be undefined.
+			checkForRedirect: function(){
+				if( this.requiresRedirect() ){
+					this.setRedirectUrl();
+				}
+			},
+
+			setRedirectUrl: function(){
+				this.redirectOptions = {
+					marketSegment: this.getRedirectMarketSegment(),
+					languageCode: this.getRedirectLanguageCode()
+				};
+
+				var configurationData = this.configurationModel.attr(),
+					urlData = configurationData.redirectUrl,
+					urlStr = this.parseRedirectUrl( urlData );
+				
+				this.redirectUrl = this.processRedirectUrl( urlStr );
+			},
+
+			//The value for 'redirectUrl' in config data might either be a simple string
+			//or an object keyed by initOptions (stored in this.redirectOptions).
+			//This function parses that 'redirectUrl' value and ultimately returns the proper URL string.
+			parseRedirectUrl: function( urlData ){
+				if( $.isString( urlData ) ){
+					return urlData;
+				} else {
+					for (var prop in urlData ){
+						return this.parseRedirectUrl( urlData[ prop ][ this.redirectOptions[ prop ] ] );
+					}
+				}
+			},
+
+			//Any vendor-specific processing that needs to happen, happens here.
+			//Right now, the only possible value for 'redirectVendor' is 'DIGITAL_RIVER',
+			//so that's the only vendor being accounted for here.
+			processRedirectUrl: function( url ){
+				var configurationData = this.configurationModel.attr(),
+					vendor = configurationData.redirectVendor,
+					items = this.options.items,
+					processedUrl = url;
+				
+				if( vendor === 'DIGITAL_RIVER' ){
+					if( items && items.length === 1 ){
+						var productKey = items[ 0 ].productKey;
+						processedUrl = url.replace( '<product_key>', productKey );
+					} else {
+						throw new Error( 'Item Not Found or More than One Item Found' );
+					}
+				}
+				return processedUrl;
+			},
+
+			getRedirectMarketSegment: function(){
+				return this.options.marketSegment;
+			},
+
+			getRedirectLanguageCode: function() {
+				var configurationData = this.configurationModel.attr(),
+					languageCode = this.options.languageCode,
+					supportedLanguages = configurationData.supportedLanguages,
+					defaultLanguage = configurationData.defaultLanguage;
+
+				if( !this.isSupportedLanguage( languageCode, supportedLanguages ) ) {
+					languageCode = defaultLanguage;
+				}
+				return languageCode;
+			},
+
+			isSupportedLanguage: function( languageCode, supportedLanguages ) {
+				var languages = can.makeArray( supportedLanguages );
+				return ( $.inArray( languageCode, languages ) > -1 );
+			},
+
+			performRedirect: function(){
+				var redirectUrl = this.getRedirectUrl();
+				if( this.options.autoRedirect ){
+					this.redirectToUrl( redirectUrl );
+				} else {
+					this.triggerEvent( 'redirectToCheckout', redirectUrl );
+				}
+			},
+
+			redirectToUrl: function( url ){
+				window.location = url;
+			},
+
+			//---------------------------------------------------------
+			// (Universal Checkout) Redirect Functionality
+			//----------------------------------------------------------
+			isUniversalMode: function(){
+				return !!this.options.universalMode;
+			},
+
+			startUniversalCheckout: function( options ){
+				if( this.configErrorOccurred ){
+					return;
+				}
+
+				if( this.isConfigured() ){
+					this.performUniversalRedirect( options );
+				} else {
+					this.savePendingUniversalRequest( options );
+				}
+			},
+
+			performUniversalRedirect: function( options ){
+				var universalUrl;
+				if( this.requiresRedirect() ){
+					this.performRedirect();
+				} else {
+					universalUrl = this.assembleUniversalUrl( options );
+					this.redirectToUrl( universalUrl );
+				}
+			},
+
+			checkForPendingUniversalRequest: function(){
+				if( $.isValue( this.pendingUniversalRequest )){
+					this.startUniversalCheckout( this.pendingUniversalRequest.options );
+				}
+			},
+
+			//if startUniversalCheckout is called before configuration data
+			//has been loaded, will store the options that it was called with
+			//so it can be called again once configuration data is loaded
+			savePendingUniversalRequest: function( options ){
+				this.pendingUniversalRequest = {
+					options: options
+				};
+			},
+
+			assembleUniversalUrl: function( options ){
+				var escapedParams = this.getUrlParams( options ),
+					universalUrl = this.getBaseUrl() + this.getAppPath() + '?' + escapedParams;
+					
+				return universalUrl;
+			},
+
+			getUrlParams: function( options ){
+				var params = this.getUniversalParams( options ),
+					unnecessaryParams = [ 'debug', 'autoLoad', 'autoRun', 'requiredOptions', 'autoRedirect', 'payPalReturnUrl', 'paypal', 'tunnelPath' ]; //don't pass payPal params to universal.
+
+				if( $.isValue( params.debug ) ){
+					if( params.debug ){
+						params.compress = false;
+					}
+				}
+
+				for( var i=0; i<unnecessaryParams.length; i++ ){
+					var param = unnecessaryParams[ i ];
+					if( $.isValue( params[ param ] ) ){
+						delete params[ param ];
+					}
+				}
+				
+				return $.param( params );
+			},
+
+			//Makes sure the languageCode we're passing is a supported language
+			getUniversalParams: function( options ){
+				var params = $.extend( true, {}, this.options, options ),
+					languageCode =  this.getRedirectLanguageCode(); 
+
+				params.languageCode = languageCode;
+				return params;
+			},
+
+			getBaseUrl: function(){
+				//If isLocal is true, leave baseUrl as an empty string	
+				var baseUrl = '',
+					configurationData = this.configurationModel.attr();
+
+				if( !this.options.isLocal ){
+					baseUrl = configurationData.baseUrl[ this.options.landscape ];
+				}
+				return baseUrl;
+			},
+
+			getAppPath: function(){
+				if( this.options.isLocal ){
+					return this.constructor.UNIVERSAL_APP_PATH_LOCAL;
+				} else {
+					return this.constructor.UNIVERSAL_APP_PATH;
+				}
+			}
+		}
+	);
+
+	return CheckoutWidget;
 
 } );
-
-
 define('scripts/anyware-widgets/price-display/price-display-controller',[
-  'jquery',
-  'can',
-  'scripts/anyware-widgets/base-widget/base-widget'
+	'jquery',
+	'can',
+	'scripts/anyware-widgets/base-widget/base-widget'
 ], function( $, can, BaseWidget ){
 
-  var PriceDisplayController = BaseWidget.extend(
+	var PriceDisplayController = BaseWidget.extend(
 
-    //Static
-    {
-      pluginName: 'price_display_controller',
-      appId: 'priceDisplay',
+		//Static
+		{
+			pluginName: 'price_display_controller',
+			appId: 'priceDisplay',
 
-      requiredOptions: []
-    },
+			requiredOptions: []
+		},
 
-    //Prototype
-    {
-      //---- Price Display Controller API ----------------------------
-      getPrices: function( data ){
-        this.container.publish( 'getPrices', data );
-      },
+		//Prototype
+		{
+			//---- Price Display Controller API ----------------------------
+			getPrices: function( data ){
+				this.container.publish( 'getPrices', data );
+			}
+		}
+	);
 
-      //---- XDomain Event Handlers ----------------------------
-      subscribeToHubEvents: function() {
-        var self = this;
-
-        this.container.subscribe( 'priceLabelsReady', function( event, data ){
-          $( self.element ).trigger( 'priceLabelsReady', [data] );
-        });
-      }
-    }
-  );
-
-  return PriceDisplayController;
+	return PriceDisplayController;
 
 });
 define('price-display',[
-  'jquery',
-  'can',
-  'scripts/anyware-widgets/price-display/price-display-controller',
-  'lib/canjs/amd/can/control/plugin',
-  'can-super',
-  'can-proxy'
+	'jquery',
+	'can',
+	'scripts/anyware-widgets/price-display/price-display-controller',
+	'lib/canjs/amd/can/control/plugin',
+	'can-super',
+	'can-proxy'
 ], function( $, can, PriceDisplayController ){
 
-  /**
-    - MAIN PUBLIC API
-    - jquery plugin - anyware_price_display
-    - scrapes the dom and collect meta data
-    - recieves options during plugin instantiation
-    - load price display app - into iframe - and setup xdomain hub
-    - passed data to app
-    - recieves markup back from app
-    - append markup to DOM
-  **/
-  var AnywarePriceDisplay = can.Control.extend(
-  /* @Static */
-  {
-    pluginName : 'anyware_price_display',
-    appId : 'priceDisplay',
+	/**
+		- MAIN PUBLIC API
+		- jquery plugin - anyware_price_display
+		- scrapes the dom and collect meta data
+		- recieves options during plugin instantiation
+		- load price display app - into iframe - and setup xdomain hub
+		- passed data to app
+		- recieves markup back from app
+		- append markup to DOM
+	**/
+	var AnywarePriceDisplay = can.Control.extend(
+	/* @Static */
+	{
+		pluginName : 'anyware_price_display',
+		appId : 'priceDisplay',
 
-    defaults : {
-      styles: {
-        PRICE_TYPE_LABEL: '',
-        FORMATTED_PRICE_CONTAINER: '',
-        SUBSCRIPTION_TERM_LABEL: '',
-        TAX_LABEL: '',
-        ORIGINAL_PRICE: 'EcommPrice_originalPrice',
-        CURRENCY_SYMBOL: 'cart-price-currency-symbol',
-        INTEGER_PRICE_VALUE: 'cart-price-dollar',
-        DECIMAL_PRICE_VALUE: 'cart-price-cent',
-        INT_DELIMITER: 'cart-price-integer-delimiter',
-        DECIMAL_DELIMITER: 'cart-price-decimal-delimiter',
-        PRICE_STYLE: 'CartCostWeak'
-      }
-    },
+		defaults : {
+			styles: {
+				PRICE_TYPE_LABEL: '',
+				FORMATTED_PRICE_CONTAINER: '',
+				SUBSCRIPTION_TERM_LABEL: '',
+				TAX_LABEL: '',
+				ORIGINAL_PRICE: 'EcommPrice_originalPrice',
+				CURRENCY_SYMBOL: 'cart-price-currency-symbol',
+				INTEGER_PRICE_VALUE: 'cart-price-dollar',
+				DECIMAL_PRICE_VALUE: 'cart-price-cent',
+				INT_DELIMITER: 'cart-price-integer-delimiter',
+				DECIMAL_DELIMITER: 'cart-price-decimal-delimiter',
+				PRICE_STYLE: 'CartCostWeak'
+			}
+		},
 
-    widgetCount : 0,
-    numberOfWidgets : 0,
+		widgetCount : 0,
+		numberOfWidgets : 0,
 
-    widgetsByMarketSegment : {"COM":[],"EDU":[]},
+		widgetsByMarketSegment : {"COM":[],"EDU":[]},
 
-    mainControl : null,
-
-
-
-    onConfigured : function( event, data ){
-      //not sure we care about this - autoload is true
-    },
-
-    onReady : function( event, data ){
-      var priceData = this.getPriceData();
-
-      priceData.options = this.options;
-      this.mainControl.getPrices( priceData );
-    },
-
-    onPriceLabelsReady : function( event, resultObj ){
-
-      var marketSegmentWidgets = this.widgetsByMarketSegment[resultObj.marketSegment],
-        priceLabelDivs = resultObj.priceLabelDivs;
-
-      for(var i=0; i < marketSegmentWidgets.length; i++){
-
-        marketSegmentWidgets[i].element.append(priceLabelDivs[i]);
-      }
-
-    },
-
-    registerWidget: function( widget, selector ){
-
-      var options,
-        widgetMarketSegment;
-
-      if( !this.numberOfWidgets ) {
-        this.numberOfWidgets = $( selector ).length;
-      }
-
-      widgetMarketSegment = widget.element.data().marketSegment || "COM";
-
-      this.widgetsByMarketSegment[widgetMarketSegment.toUpperCase()].push(widget);
-
-      this.widgetCount++;
-
-      if( !this.mainControl && this.widgetCount === this.numberOfWidgets ) {
-        options = widget.options;
-
-        this.createMainControl(  options );
-      }
-    },
+		mainControl : null,
 
 
-    getPriceData: function(){
 
-      var widgetData, widgetOptions,
-        priceData = { "COM":[], "EDU":[] },
-        self = this;
+		onConfigured : function( event, data ){
+			//not sure we care about this - autoload is true
+		},		
 
-      $.each(this.widgetsByMarketSegment, function( marketSegment, widgets ){
+		onApplicationReady : function( event, data ){
+			var priceData = this.getPriceData();
 
-        for( var i = 0; i < widgets.length; i++ ) {
+			priceData.options = this.options;
+			this.mainControl.getPrices( priceData );
+		},
 
-          var widget = widgets[ i ];
-          widgetOptions = widget.options;
-          widgetData = self.getWidgetData( widget );
+		onPriceLabelsReady : function( event, resultObj ){
 
-          priceData[ marketSegment ].push( $.extend( true, {}, widgetOptions, widgetData ));
-        }
-      });
+			var marketSegmentWidgets = this.widgetsByMarketSegment[resultObj.marketSegment],
+				priceLabelDivs = resultObj.priceLabelDivs;
 
-      return priceData;
+			for(var i=0; i < marketSegmentWidgets.length; i++){
 
-    },
+				marketSegmentWidgets[i].element.append(priceLabelDivs[i]);
+			}
+			
+		},
 
-    // Gets all of the data- attributes attached to the widget's element
-    // except for 'controls' attribute, which causes cross-domain issues
-    // when passed through cross-domain Hub.
-    getWidgetData: function( widget ){
-      var widgetData = $.extend( true, {}, widget.element.data() );
-      widgetData.controls = null;
-      return widgetData;
-    },
+		registerWidget: function( widget, selector ){
 
-    createMainControl : function( options ) {
-      var $elem = $('<div id="price-display-controller" style="height:0px;width:0px"></div>');
-      $('body').append( $elem );
+			var options,
+				widgetMarketSegment;
 
-      $elem.on( 'configured', $.proxy( this, 'onConfigured' ));
-      $elem.on( 'ready', $.proxy( this, 'onReady' ));
-      $elem.on( 'priceLabelsReady', $.proxy( this, 'onPriceLabelsReady' ));
+			if( !this.numberOfWidgets ) {
+				this.numberOfWidgets = $( selector ).length;
+			}
 
-      this.mainControl = new PriceDisplayController( $elem, options );
-    },
+			widgetMarketSegment = widget.element.data().marketSegment || "COM";
 
-    destroyMainController : function(){
-      $('#price-display-controller').remove();
-      this.mainControl = null;
-    },
+			this.widgetsByMarketSegment[widgetMarketSegment.toUpperCase()].push(widget);
 
-    unregisterWidget: function( widget ){
-      var marketSegment = widget.element.data().marketSegment || "COM",
-        widgetArray = this.widgetsByMarketSegment[ marketSegment.toUpperCase() ];
+			this.widgetCount++;
 
-      this.widgetCount--;
-      this.numberOfWidgets--;
+			if( !this.mainControl && this.widgetCount === this.numberOfWidgets ) {
+				options = widget.options;
 
-      widgetArray.splice( widgetArray.indexOf( widget ), 1 );
-
-      if( this.numberOfWidgets === 0 ) {
-        this.destroyMainController();
-      }
-    }
+				this.createMainControl(  options );
+			}
+		},
 
 
-  },
-  /* @Prototype */
-  {
-    init: function() {
-      this.constructor.registerWidget( this, this.options.selector );
-    },
+		getPriceData: function(){
 
-    destroy: function() {
-      this.constructor.unregisterWidget( this );
-      this._super();
-    }
+			var widgetData, widgetOptions,
+				priceData = { "COM":[], "EDU":[] },
+				self = this;
 
-  });
+			$.each(this.widgetsByMarketSegment, function( marketSegment, widgets ){
 
-  return AnywarePriceDisplay;
+				for( var i = 0; i < widgets.length; i++ ) {
+
+					var widget = widgets[ i ];
+					widgetOptions = widget.options;
+					widgetData = self.getWidgetData( widget );
+
+					priceData[ marketSegment ].push( $.extend( true, {}, widgetOptions, widgetData ));
+				}
+			});
+
+			return priceData;
+
+		},
+
+		// Gets all of the data- attributes attached to the widget's element
+		// except for 'controls' attribute, which causes cross-domain issues 
+		// when passed through cross-domain Hub.
+		getWidgetData: function( widget ){
+			var widgetData = $.extend( true, {}, widget.element.data() );
+			widgetData.controls = null;
+			return widgetData;
+		},
+
+		createMainControl : function( options ) {
+			var $elem = $('<div id="price-display-controller" style="height:0px;width:0px"></div>');
+			$('body').append( $elem );
+
+			$elem.on( 'configured', $.proxy( this, 'onConfigured' ));
+			$elem.on( 'applicationReady', $.proxy( this, 'onApplicationReady' ));
+			$elem.on( 'priceLabelsReady', $.proxy( this, 'onPriceLabelsReady' ));
+
+			this.mainControl = new PriceDisplayController( $elem, options );
+		},
+
+		destroyMainController : function(){
+			$('#price-display-controller').remove();
+			this.mainControl = null;
+		},
+
+		unregisterWidget: function( widget ){
+			var marketSegment = widget.element.data().marketSegment || "COM",
+				widgetArray = this.widgetsByMarketSegment[ marketSegment.toUpperCase() ];
+
+			this.widgetCount--;
+			this.numberOfWidgets--;
+
+			widgetArray.splice( widgetArray.indexOf( widget ), 1 );		
+
+			if( this.numberOfWidgets === 0 ) {
+				this.destroyMainController();
+			}
+		}
+
+
+	},
+	/* @Prototype */
+	{
+		init: function() {
+			this.constructor.registerWidget( this, this.options.selector );
+		},
+
+		destroy: function() {
+			this.constructor.unregisterWidget( this );
+			this._super();
+		}
+
+	});
+
+	return AnywarePriceDisplay;
 });
+define( 'live-person-chat',[
+	'jquery',
+	'scripts/anyware-widgets/base-widget/base-widget',
+	'lib/canjs/amd/can/control/plugin',
+	'can-super'
+], function( $, BaseWidget ) {
+
+	var ChatWidget = BaseWidget.extend(
+
+		//Static
+		{
+			pluginName: 'anyware_live_person_chat',
+			appId: 'lpchat',
+
+			IFRAME_ANIMATION_TIME: 400
+		},
+
+		//Prototype
+		{
+			setAdditionalOptions: function(){
+				this.options.iframeAttrs = {
+					'style': { width:"450px", height:"400px", display: "none" }
+				};
+			},
+
+
+			//---- LivePerson Chat API ----------------------------
+			chatEventHandler: function( order ){
+				try {
+					this.container.publish( 'chatEventHandler', order );
+				} catch( exception ) {
+					// fail silently
+				}
+			},
+
+
+			//---- XDomain Event Handlers ----------------------------
+			subscribeToHubEvents: function() {
+				this.subscribe( 'iframeDisplay', this.proxy( 'onIframeDisplay' ));
+			},
+
+			onIframeDisplay: function(ev, data){
+				var $iframe = $(".anyware-iframe");
+				if(data.display){
+					$iframe.show(this.constructor.IFRAME_ANIMATION_TIME);
+				}else{
+					$iframe.hide(this.constructor.IFRAME_ANIMATION_TIME);
+				}
+			}
+		}
+	);
+
+	return ChatWidget;
+
+} );
+
+
 
 //Widgets need to be added here so that they're included in the output js file
 require([
-  'jquery',
-  'tokenizer',
-  'checkout',
-  'price-display'
-], function( $ ){
-  $(document).trigger( 'anywareReady' );
+	'jquery',
+	'price-generator',
+	'product-configurator',
+	'tokenizer', 
+	'checkout',
+	'price-display',
+	'live-person-chat'
+], function( $, PriceGenerator ){
+
+	$.createNs( 'Adobe.Anyware' );
+	Adobe.Anyware.PriceGenerator = PriceGenerator;
+
+	$(document).trigger( 'anywareReady' );
 });
 define("scripts/anyware-widgets/anyware-widgets", function(){});
 
