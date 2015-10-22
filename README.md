@@ -2,6 +2,12 @@
 
 3rd party utility libraries here. They must be of sufficient high quality to be included here and offer common functionality.
 
+### Cutting a Release
+
+1. `npm version <version number>`
+1. `git push upstream master --follow-tags`
+1. Edit the release notes at https://github.com/behance/assets-vendor/releases
+
 ## Updating ckeditor
 
 Behance maintains several CKEditor plugins in the behance/ckeditor-dev repo. In order to update to the latest CKEditor, perform the following steps:
